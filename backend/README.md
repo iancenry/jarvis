@@ -72,9 +72,9 @@ backend/
 ## Getting Started
 
 ### Prerequisites
-- Go 1.21+
-- PostgreSQL 15+
-- Redis 7+
+- Go 1.24+
+- PostgreSQL 16+
+- Redis 8+
 - Task (taskfile.dev)
 
 ### Installation
@@ -104,52 +104,6 @@ task run
 
 Configuration is managed through environment variables with the `BOILERPLATE_` prefix:
 
-### Database Configuration
-```env
-BOILERPLATE_DATABASE_HOST=localhost
-BOILERPLATE_DATABASE_PORT=5432
-BOILERPLATE_DATABASE_USER=postgres
-BOILERPLATE_DATABASE_PASSWORD=password
-BOILERPLATE_DATABASE_NAME=boilerplate
-BOILERPLATE_DATABASE_SSL_MODE=disable
-```
-
-### Server Configuration
-```env
-BOILERPLATE_SERVER_PORT=8080
-BOILERPLATE_SERVER_READ_TIMEOUT=10s
-BOILERPLATE_SERVER_WRITE_TIMEOUT=10s
-BOILERPLATE_SERVER_SHUTDOWN_TIMEOUT=30s
-```
-
-### Authentication
-```env
-BOILERPLATE_AUTH_CLERK_SECRET_KEY=sk_test_...
-BOILERPLATE_AUTH_CLERK_PUBLISHABLE_KEY=pk_test_...
-```
-
-### Redis Configuration
-```env
-BOILERPLATE_REDIS_HOST=localhost
-BOILERPLATE_REDIS_PORT=6379
-BOILERPLATE_REDIS_PASSWORD=
-BOILERPLATE_REDIS_DB=0
-```
-
-### Email Service
-```env
-BOILERPLATE_EMAIL_RESEND_API_KEY=re_...
-BOILERPLATE_EMAIL_FROM_ADDRESS=noreply@example.com
-BOILERPLATE_EMAIL_FROM_NAME=Go Boilerplate
-```
-
-### Observability
-```env
-BOILERPLATE_OBSERVABILITY_NEWRELIC_LICENSE_KEY=...
-BOILERPLATE_OBSERVABILITY_NEWRELIC_APP_NAME=go-boilerplate
-BOILERPLATE_OBSERVABILITY_LOG_LEVEL=info
-```
-
 ## Development
 
 ### Available Tasks
@@ -158,13 +112,10 @@ BOILERPLATE_OBSERVABILITY_LOG_LEVEL=info
 task help                    # Show all available tasks
 task run                     # Run the application
 task test                    # Run tests
-task test:integration        # Run integration tests
 task migrations:new name=X   # Create new migration
 task migrations:up           # Apply migrations
 task migrations:down         # Rollback last migration
 task tidy                    # Format and tidy dependencies
-task lint                    # Run linters
-task build                   # Build the application
 ```
 
 ### Project Structure
@@ -212,71 +163,6 @@ Cross-cutting concerns:
 go test ./...
 ```
 
-#### Integration Tests
-```bash
-# Requires Docker
-go test -tags=integration ./...
-```
-
-#### Test Coverage
-```bash
-go test -cover ./...
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-```
-
-### API Endpoints
-
-#### Health Checks
-- `GET /health` - Basic health check
-- `GET /readiness` - Readiness probe
-- `GET /liveness` - Liveness probe
-
-#### Authentication
-- `POST /auth/login` - User login
-- `POST /auth/logout` - User logout
-- `POST /auth/refresh` - Refresh token
-
-#### User Management
-- `GET /users` - List users
-- `GET /users/:id` - Get user details
-- `POST /users` - Create user
-- `PUT /users/:id` - Update user
-- `DELETE /users/:id` - Delete user
-
-#### API Documentation
-- `GET /swagger/*` - Swagger UI
-- `GET /openapi.json` - OpenAPI specification
-
-## Error Handling
-
-The application uses a structured error handling approach:
-
-```go
-// Custom error types
-type ValidationError struct {
-    Field   string
-    Message string
-}
-
-type BusinessError struct {
-    Code    string
-    Message string
-}
-
-// Error responses
-{
-    "error": {
-        "code": "VALIDATION_ERROR",
-        "message": "Invalid input",
-        "details": {
-            "field": "email",
-            "message": "Invalid email format"
-        }
-    }
-}
-```
-
 ## Logging
 
 Structured logging with Zerolog:
@@ -294,23 +180,6 @@ Log levels:
 - `warn`: Warning messages
 - `error`: Error messages
 - `fatal`: Fatal errors that cause shutdown
-
-## Deployment
-
-### Docker
-
-Build and run with Docker:
-
-```bash
-docker build -t go-boilerplate .
-docker run -p 8080:8080 --env-file .env go-boilerplate
-```
-
-### Docker Compose
-
-```bash
-docker-compose up -d
-```
 
 ### Production Checklist
 
@@ -353,37 +222,6 @@ docker-compose up -d
 6. **Secrets Management**: Environment variables, never in code
 7. **HTTPS Only**: Enforce TLS in production
 8. **Dependency Scanning**: Regular vulnerability checks
-
-## Troubleshooting
-
-### Common Issues
-
-#### Database Connection Errors
-```bash
-# Check PostgreSQL is running
-docker-compose ps
-
-# Verify connection string
-psql $BOILERPLATE_DATABASE_URL
-```
-
-#### Migration Failures
-```bash
-# Check migration status
-task migrations:status
-
-# Rollback if needed
-task migrations:down
-```
-
-#### Performance Issues
-```bash
-# Enable debug logging
-BOILERPLATE_OBSERVABILITY_LOG_LEVEL=debug task run
-
-# Check New Relic dashboard
-# Review slow query logs
-```
 
 ## Contributing
 

@@ -30,17 +30,16 @@ go-boilerplate/
 
 ### Prerequisites
 
-- Go 1.21 or higher
-- Node.js 18+ and Bun
-- Docker and Docker Compose
-- PostgreSQL 15+
-- Redis 7+
+- Go 1.24 or higher
+- Node.js 22+ and Bun
+- PostgreSQL 16+
+- Redis 8+
 
 ### Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/go-boilerplate.git
+git clone https://github.com/sriniously/go-boilerplate.git
 cd go-boilerplate
 ```
 
@@ -60,10 +59,7 @@ cp backend/.env.example backend/.env
 # Edit backend/.env with your configuration
 ```
 
-4. Start the database and Redis:
-```bash
-docker-compose up -d postgres redis
-```
+4. Start the database and Redis.
 
 5. Run database migrations:
 ```bash
@@ -137,18 +133,6 @@ go test -cover ./...
 
 # Run integration tests (requires Docker)
 go test -tags=integration ./...
-```
-
-## Deployment
-
-### Docker
-
-```bash
-# Build the image
-docker build -t go-boilerplate ./backend
-
-# Run with Docker Compose
-docker-compose up
 ```
 
 ### Production Considerations
