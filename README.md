@@ -19,7 +19,7 @@ A production-ready monorepo template for building scalable web applications with
 
 ```
 go-boilerplate/
-├── backend/          # Go backend application
+├── apps/backend/          # Go backend application
 ├── packages/         # Frontend packages (React, Vue, etc.)
 ├── package.json      # Monorepo configuration
 ├── turbo.json        # Turborepo configuration
@@ -49,21 +49,21 @@ cd go-boilerplate
 bun install
 
 # Install backend dependencies
-cd backend
+cd apps/backend
 go mod download
 ```
 
 3. Set up environment variables:
 ```bash
-cp backend/.env.example backend/.env
-# Edit backend/.env with your configuration
+cp apps/backend/.env.example apps/backend/.env
+# Edit apps/backend/.env with your configuration
 ```
 
 4. Start the database and Redis.
 
 5. Run database migrations:
 ```bash
-cd backend
+cd apps/backend
 task migrations:up
 ```
 
@@ -73,7 +73,7 @@ task migrations:up
 bun dev
 
 # Or just the backend
-cd backend
+cd apps/backend
 task run
 ```
 
@@ -109,7 +109,7 @@ The backend uses environment variables prefixed with `BOILERPLATE_`. Key variabl
 - `BOILERPLATE_EMAIL_*` - Email service configuration
 - `BOILERPLATE_OBSERVABILITY_*` - Monitoring settings
 
-See `backend/.env.example` for a complete list.
+See `apps/backend/.env.example` for a complete list.
 
 ## Architecture
 
@@ -125,7 +125,7 @@ This boilerplate follows clean architecture principles:
 
 ```bash
 # Run backend tests
-cd backend
+cd apps/backend
 go test ./...
 
 # Run with coverage

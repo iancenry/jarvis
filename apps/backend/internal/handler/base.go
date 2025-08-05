@@ -48,9 +48,7 @@ func (h JSONResponseHandler) GetOperation() string {
 }
 
 func (h JSONResponseHandler) AddAttributes(txn *newrelic.Transaction, result interface{}) {
-	if txn != nil {
-		txn.AddAttribute("http.status_code", h.status)
-	}
+	// http.status_code is already set by tracing middleware
 }
 
 // NoContentResponseHandler handles no-content responses
@@ -67,9 +65,7 @@ func (h NoContentResponseHandler) GetOperation() string {
 }
 
 func (h NoContentResponseHandler) AddAttributes(txn *newrelic.Transaction, result interface{}) {
-	if txn != nil {
-		txn.AddAttribute("http.status_code", h.status)
-	}
+	// http.status_code is already set by tracing middleware
 }
 
 // FileResponseHandler handles file responses
@@ -91,7 +87,7 @@ func (h FileResponseHandler) GetOperation() string {
 
 func (h FileResponseHandler) AddAttributes(txn *newrelic.Transaction, result interface{}) {
 	if txn != nil {
-		txn.AddAttribute("http.status_code", h.status)
+		// http.status_code is already set by tracing middleware
 		txn.AddAttribute("file.name", h.filename)
 		txn.AddAttribute("file.content_type", h.contentType)
 		if data, ok := result.([]byte); ok {
@@ -116,8 +112,7 @@ func handleRequest[Req validation.Validatable](
 	txn := newrelic.FromContext(c.Request().Context())
 	if txn != nil {
 		txn.AddAttribute("handler.name", route)
-		txn.AddAttribute("http.method", method)
-		txn.AddAttribute("http.route", path)
+		// http.method and http.route are already set by nrecho middleware
 		responseHandler.AddAttributes(txn, nil)
 	}
 
@@ -137,12 +132,7 @@ func handleRequest[Req validation.Validatable](
 	
 	logger := loggerBuilder.Logger()
 
-	// Add user context to New Relic if available
-	if userID := middleware.GetUserID(c); userID != "" {
-		if txn != nil {
-			txn.AddAttribute("user.id", userID)
-		}
-	}
+	// user.id is already set by tracing middleware
 
 	logger.Info().Msg("handling request")
 

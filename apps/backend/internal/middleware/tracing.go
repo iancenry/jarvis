@@ -42,10 +42,7 @@ func (tm *TracingMiddleware) EnhanceTracing() echo.MiddlewareFunc {
 				return next(c)
 			}
 
-			// Add custom attributes
-			txn.AddAttribute("service.name", tm.server.Config.Observability.ServiceName)
-			txn.AddAttribute("service.environment",
-				tm.server.Config.Observability.Environment)
+			// service.name and service.environment are already set in logger and New Relic config
 			txn.AddAttribute("http.real_ip", c.RealIP())
 			txn.AddAttribute("http.user_agent", c.Request().UserAgent())
 
