@@ -22,7 +22,6 @@ func NewOpenAPIHandler(s *server.Server) *OpenAPIHandler {
 
 func (h *OpenAPIHandler) ServeOpenAPIUI(c echo.Context) error {
 	templateBytes, err := os.ReadFile("static/openapi.html")
-	// do not cache the file so that we can see the new changes with refresh
 	c.Response().Header().Set("Cache-Control", "no-cache")
 	if err != nil {
 		return fmt.Errorf("failed to read OpenAPI UI template: %w", err)

@@ -27,8 +27,6 @@ filePaths.forEach((filePath) => {
   fs.writeFile(filePath, JSON.stringify(formattedDoc, null, 2), (err) => {
     if (err) {
       console.error(`Error writing to ${filePath}:`, err);
-    } else {
-      console.log(`Formatted document written to ${filePath}`);
     }
   });
 });

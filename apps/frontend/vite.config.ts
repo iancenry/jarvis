@@ -17,7 +17,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
       "@boilerplate/openapi": path.resolve(
         __dirname,
-        "../packages/openapi/src"
+        "../../packages/openapi/src"
       ),
       "@boilerplate/zod": path.resolve(__dirname, "../../packages/zod/src"),
     },

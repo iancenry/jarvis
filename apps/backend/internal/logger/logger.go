@@ -24,7 +24,6 @@ func NewLoggerService(cfg *config.ObservabilityConfig) *LoggerService {
 	service := &LoggerService{}
 
 	if cfg.NewRelic.LicenseKey == "" {
-		fmt.Println("New Relic license key not provided, skipping initialization")
 		return service
 	}
 
@@ -43,12 +42,10 @@ func NewLoggerService(cfg *config.ObservabilityConfig) *LoggerService {
 
 	app, err := newrelic.NewApplication(configOptions...)
 	if err != nil {
-		fmt.Printf("Failed to initialize New Relic: %v\n", err)
 		return service
 	}
 
 	service.nrApp = app
-	fmt.Printf("New Relic initialized for app: %s\n", cfg.ServiceName)
 	return service
 }
 
@@ -64,25 +61,6 @@ func (ls *LoggerService) GetApplication() *newrelic.Application {
 	return ls.nrApp
 }
 
-// NewLogger creates a new logger with specified level (backward compatibility)
-func NewLogger(level string, isProd bool) zerolog.Logger {
-	return NewLoggerWithService(&config.ObservabilityConfig{
-		Logging: config.LoggingConfig{
-			Level: level,
-		},
-		Environment: func() string {
-			if isProd {
-				return "production"
-			}
-			return "development"
-		}(),
-	}, nil)
-}
-
-// NewLoggerWithConfig creates a logger with full config (backward compatibility)
-func NewLoggerWithConfig(cfg *config.ObservabilityConfig) zerolog.Logger {
-	return NewLoggerWithService(cfg, nil)
-}
 
 // NewLoggerWithService creates a logger with full config and logger service
 func NewLoggerWithService(cfg *config.ObservabilityConfig, loggerService *LoggerService) zerolog.Logger {
