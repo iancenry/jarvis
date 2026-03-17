@@ -1,4 +1,4 @@
-# Go Boilerplate Backend
+# Go JARVIS Backend
 
 A production-ready Go backend service built with Echo framework, featuring clean architecture, comprehensive middleware, and modern DevOps practices.
 
@@ -8,7 +8,7 @@ This backend follows clean architecture principles with clear separation of conc
 
 ```
 backend/
-├── cmd/go-boilerplate/        # Application entry point
+├── cmd/go-jarvis/        # Application entry point
 ├── internal/                  # Private application code
 │   ├── config/               # Configuration management
 │   ├── database/             # Database connections and migrations
@@ -27,17 +27,20 @@ backend/
 ## Features
 
 ### Core Framework
+
 - **Echo v4**: High-performance, minimalist web framework
 - **Clean Architecture**: Handlers → Services → Repositories → Models
 - **Dependency Injection**: Constructor-based DI for testability
 
 ### Database
+
 - **PostgreSQL**: Primary database with pgx/v5 driver
 - **Migration System**: Tern for schema versioning
 - **Connection Pooling**: Optimized for production workloads
 - **Transaction Support**: ACID compliance for critical operations
 
 ### Authentication & Security
+
 - **Clerk Integration**: Modern authentication service
 - **JWT Validation**: Secure token verification
 - **Role-Based Access**: Configurable permission system
@@ -45,6 +48,7 @@ backend/
 - **Security Headers**: XSS, CSRF, and clickjacking protection
 
 ### Observability
+
 - **New Relic APM**: Application performance monitoring
 - **Structured Logging**: JSON logs with Zerolog
 - **Request Tracing**: Distributed tracing support
@@ -52,6 +56,7 @@ backend/
 - **Custom Metrics**: Business-specific monitoring
 
 ### Background Jobs
+
 - **Asynq**: Redis-based distributed task queue
 - **Priority Queues**: Critical, default, and low priority
 - **Job Scheduling**: Cron-like task scheduling
@@ -59,12 +64,14 @@ backend/
 - **Job Monitoring**: Real-time job status tracking
 
 ### Email Service
+
 - **Resend Integration**: Reliable email delivery
 - **HTML Templates**: Beautiful transactional emails
 - **Preview Mode**: Test emails in development
 - **Batch Sending**: Efficient bulk operations
 
 ### API Documentation
+
 - **OpenAPI 3.0**: Complete API specification
 - **Swagger UI**: Interactive API explorer
 - **Auto-generation**: Code-first approach
@@ -72,6 +79,7 @@ backend/
 ## Getting Started
 
 ### Prerequisites
+
 - Go 1.24+
 - PostgreSQL 16+
 - Redis 8+
@@ -80,29 +88,33 @@ backend/
 ### Installation
 
 1. Install dependencies:
+
 ```bash
 go mod download
 ```
 
 2. Set up environment:
+
 ```bash
 cp .env.example .env
 # Configure your environment variables
 ```
 
 3. Run migrations:
+
 ```bash
 task migrations:up
 ```
 
 4. Start the server:
+
 ```bash
 task run
 ```
 
 ## Configuration
 
-Configuration is managed through environment variables with the `BOILERPLATE_` prefix:
+Configuration is managed through environment variables with the `JARVIS_` prefix:
 
 ## Development
 
@@ -121,34 +133,44 @@ task tidy                    # Format and tidy dependencies
 ### Project Structure
 
 #### Handlers (`internal/handler/`)
+
 HTTP request handlers that:
+
 - Parse and validate requests
 - Call appropriate services
 - Format responses
 - Handle HTTP-specific concerns
 
 #### Services (`internal/service/`)
+
 Business logic layer that:
+
 - Implements use cases
 - Orchestrates operations
 - Enforces business rules
 - Handles transactions
 
 #### Repositories (`internal/repository/`)
+
 Data access layer that:
+
 - Encapsulates database queries
 - Provides data mapping
 - Handles database-specific logic
 - Supports multiple data sources
 
 #### Models (`internal/model/`)
+
 Domain entities that:
+
 - Define core business objects
 - Include validation rules
 - Remain database-agnostic
 
 #### Middleware (`internal/middleware/`)
+
 Cross-cutting concerns:
+
 - Authentication/Authorization
 - Request logging
 - Error handling
@@ -159,6 +181,7 @@ Cross-cutting concerns:
 ### Testing
 
 #### Unit Tests
+
 ```bash
 go test ./...
 ```
@@ -175,6 +198,7 @@ log.Info().
 ```
 
 Log levels:
+
 - `debug`: Detailed debugging information
 - `info`: General informational messages
 - `warn`: Warning messages
@@ -197,17 +221,20 @@ Log levels:
 ## Performance Optimization
 
 ### Database
+
 - Connection pooling configured
 - Prepared statements for frequent queries
 - Indexes on commonly queried fields
 - Query optimization with EXPLAIN ANALYZE
 
 ### Caching
+
 - Redis for session storage
 - In-memory caching for hot data
 - HTTP caching headers
 
 ### Concurrency
+
 - Goroutine pools for parallel processing
 - Context-based cancellation
 - Proper mutex usage

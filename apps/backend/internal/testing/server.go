@@ -3,10 +3,10 @@ package testing
 import (
 	"time"
 
+	"github.com/iancenry/jarvis/internal/config"
+	"github.com/iancenry/jarvis/internal/database"
+	"github.com/iancenry/jarvis/internal/server"
 	"github.com/rs/zerolog"
-	"github.com/sriniously/go-boilerplate/internal/config"
-	"github.com/sriniously/go-boilerplate/internal/database"
-	"github.com/sriniously/go-boilerplate/internal/server"
 )
 
 // CreateTestServer creates a server instance for testing

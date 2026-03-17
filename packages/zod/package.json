@@ -1,7 +1,7 @@
 {
-  "name": "@boilerplate/zod",
+  "name": "@jarvis/zod",
   "version": "1.0.0",
-  "description": "Package which exports all Boilerplate zod schemas and types",
+  "description": "Package which exports all Jarvis zod schemas and types",
   "type": "module",
   "scripts": {
     "build": "tsc && tsc-alias",

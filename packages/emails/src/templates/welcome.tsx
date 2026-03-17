@@ -11,62 +11,62 @@ import {
   Preview,
   Section,
   Text,
-  Tailwind,
-} from "@react-email/components";
+  Tailwind
+} from '@react-email/components';
 
 interface WelcomeEmailProps {
   userFirstName: string;
 }
 
 export const WelcomeEmail = ({
-  userFirstName = "{{.UserFirstName}}",
+  userFirstName = '{{.UserFirstName}}'
 }: WelcomeEmailProps) => {
   return (
     <Html>
       <Head />
-      <Preview>Welcome to Boilerplate</Preview>
+      <Preview>Welcome to JARVIS</Preview>
       <Tailwind>
-        <Body className="bg-gray-100 font-sans">
-          <Container className="bg-white p-8 rounded-lg shadow-sm my-10 mx-auto max-w-[600px]">
-            <Heading className="text-2xl font-bold text-gray-800 mt-4">
-              Welcome to Boilerplate!
+        <Body className='bg-gray-100 font-sans'>
+          <Container className='bg-white p-8 rounded-lg shadow-sm my-10 mx-auto max-w-[600px]'>
+            <Heading className='text-2xl font-bold text-gray-800 mt-4'>
+              Welcome to JARVIS!
             </Heading>
 
             <Section>
-              <Text className="text-gray-700 text-base">
+              <Text className='text-gray-700 text-base'>
                 Hi {userFirstName},
               </Text>
-              <Text className="text-gray-700 text-base">
+              <Text className='text-gray-700 text-base'>
                 Thank you for joining!
               </Text>
             </Section>
 
-            <Section className="my-8 text-center">
+            <Section className='my-8 text-center'>
               <Button
-                className="bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md px-6 py-3"
+                className='bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md px-6 py-3'
                 href={`/dashboard`}
               >
                 Get Started
               </Button>
             </Section>
 
-            <Hr className="border-gray-200 my-6" />
+            <Hr className='border-gray-200 my-6' />
 
             <Section>
-              <Text className="text-gray-600 text-sm">
-                If you have any questions, feel free to{" "}
-                <Link href={`/support`} className="text-orange-600 underline">
+              <Text className='text-gray-600 text-sm'>
+                If you have any questions, feel free to{' '}
+                <Link href={`/support`} className='text-orange-600 underline'>
                   contact our support team
                 </Link>
                 .
               </Text>
             </Section>
 
-            <Section className="mt-8 text-center">
-              <Text className="text-gray-500 text-xs">
+            <Section className='mt-8 text-center'>
+              <Text className='text-gray-500 text-xs'>
                 © {new Date().getFullYear()} Alfred. All rights reserved.
               </Text>
-              <Text className="text-gray-500 text-xs">
+              <Text className='text-gray-500 text-xs'>
                 123 Project Street, Suite 100, San Francisco, CA 94103
               </Text>
             </Section>
@@ -78,7 +78,7 @@ export const WelcomeEmail = ({
 };
 
 WelcomeEmail.PreviewProps = {
-  userFirstName: "John",
+  userFirstName: 'John'
 };
 
 export default WelcomeEmail;

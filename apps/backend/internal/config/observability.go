@@ -35,7 +35,7 @@ type HealthChecksConfig struct {
 
 func DefaultObservabilityConfig() *ObservabilityConfig {
 	return &ObservabilityConfig{
-		ServiceName: "boilerplate",
+		ServiceName: "jarvis",
 		Environment: "development",
 		Logging: LoggingConfig{
 			Level:              "info",

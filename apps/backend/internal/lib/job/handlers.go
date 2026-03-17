@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/hibiken/asynq"
+	"github.com/iancenry/jarvis/internal/config"
+	"github.com/iancenry/jarvis/internal/lib/email"
 	"github.com/rs/zerolog"
-	"github.com/sriniously/go-boilerplate/internal/config"
-	"github.com/sriniously/go-boilerplate/internal/lib/email"
 )
 
 var emailClient *email.Client

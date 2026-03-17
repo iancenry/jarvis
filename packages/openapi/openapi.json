@@ -5,9 +5,7 @@
       "get": {
         "description": "Get health status",
         "summary": "Get health",
-        "tags": [
-          "Health"
-        ],
+        "tags": ["Health"],
         "parameters": [],
         "operationId": "getHealth",
         "responses": {
@@ -20,10 +18,7 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "healthy",
-                        "unhealthy"
-                      ]
+                      "enum": ["healthy", "unhealthy"]
                     },
                     "timestamp": {
                       "type": "string",
@@ -48,10 +43,7 @@
                               "type": "string"
                             }
                           },
-                          "required": [
-                            "status",
-                            "response_time"
-                          ]
+                          "required": ["status", "response_time"]
                         },
                         "redis": {
                           "type": "object",
@@ -66,23 +58,13 @@
                               "type": "string"
                             }
                           },
-                          "required": [
-                            "status",
-                            "response_time"
-                          ]
+                          "required": ["status", "response_time"]
                         }
                       },
-                      "required": [
-                        "database"
-                      ]
+                      "required": ["database"]
                     }
                   },
-                  "required": [
-                    "status",
-                    "timestamp",
-                    "environment",
-                    "checks"
-                  ]
+                  "required": ["status", "timestamp", "environment", "checks"]
                 }
               }
             }
@@ -93,8 +75,8 @@
   },
   "info": {
     "version": "1.0.0",
-    "title": "Boilerplate REST API - Documentation",
-    "description": "Boilerplate REST API - Documentation"
+    "title": "JARVIS REST API - Documentation",
+    "description": "JARVIS REST API - Documentation"
   },
   "servers": [
     {

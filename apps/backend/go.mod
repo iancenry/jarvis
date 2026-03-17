@@ -1,4 +1,4 @@
-module github.com/sriniously/go-boilerplate
+module github.com/iancenry/jarvis
 
 go 1.24.5
 
