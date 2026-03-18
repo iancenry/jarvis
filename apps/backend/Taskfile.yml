@@ -1,5 +1,7 @@
 version: '3'
 
+dotenv: ['.env']
+
 vars:
   JARVIS_DB_DSN: '{{.JARVIS_DB_DSN | default ""}}'
 
