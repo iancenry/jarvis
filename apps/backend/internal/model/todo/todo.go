@@ -5,6 +5,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iancenry/jarvis/internal/model"
+	"github.com/iancenry/jarvis/internal/model/category"
+	"github.com/iancenry/jarvis/internal/model/comment"
 )
 
 type Status string
@@ -46,4 +48,20 @@ type Todo struct {
 	CategoryID *uuid.UUID `json:"categoryId,omitempty" db:"category_id"`
 	Metadata *Metadata `json:"metadata,omitempty" db:"metadata"`
 	SortOrder int `json:"sortOrder" db:"sort_order"`
+}
+
+type PopulatedTodo struct {
+	Todo
+	Category *category.Category `json:"category,omitempty" db:"category,omitempty"`
+	Children []Todo `json:"children,omitempty" db:"children,omitempty"`
+	Comments []comment.Comment `json:"comments,omitempty" db:"comments,omitempty"`
+}
+
+type TodoStats struct {
+	Total int `json:"total"`
+	Draft int `json:"draft"`
+	Active int `json:"active"`
+	Completed int `json:"completed"`
+	Archived int `json:"archived"`
+	Overdue int `json:"overdue"`
 }

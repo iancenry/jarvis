@@ -53,12 +53,12 @@ func (q *GetCategoriesQuery) Validate() error {
 		defaultLimit := 50
 		q.Limit = &defaultLimit
 	}
-	if q.Sort == nil {
-		defaultSort := "created_at"
+	if q.Sort == nil { 
+		defaultSort := "name"
 		q.Sort = &defaultSort
 	}
 	if q.Order == nil {
-		defaultOrder := "desc"
+		defaultOrder := "asc"
 		q.Order = &defaultOrder
 	}
 

@@ -104,10 +104,3 @@ func (q *DeleteTodoByIDQuery) Validate() error {
 	validate := validator.New()
 	return validate.Struct(q)
 }
-
-// GetTodosStatsQuery defines the structure for querying todo statistics
-type GetTodosStatsQuery struct {}
-
-func (q *GetTodosStatsQuery) Validate() error {
-	return nil
-}
