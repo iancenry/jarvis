@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/iancenry/jarvis/internal/model"
 	"github.com/iancenry/jarvis/internal/model/category"
 	"github.com/iancenry/jarvis/internal/server"
@@ -121,7 +122,29 @@ func (r *CategoryRepository) GetCategories(ctx context.Context, userID string, q
 
 }
 
-func (r *CategoryRepository) UpdateCategory(ctx context.Context, userID string, categoryID string, payload *category.UpdateCategoryPayload) (*category.Category, error) {
+func (r *CategoryRepository) GetCategoryByID(ctx context.Context, userID string, categoryID uuid.UUID) (*category.Category, error) {
+	stmt := `
+		SELECT *
+		FROM categories
+		WHERE user_id = @user_id AND id = @id
+	`
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+		"user_id": userID,
+		"id": categoryID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute get category by ID query for user_id=%s and category_id=%s: %w", userID, categoryID, err)
+	}
+
+	category, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[category.Category])
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect category by ID for user_id=%s and category_id=%s: %w", userID, categoryID, err)
+	}
+
+	return &category, nil
+}
+
+func (r *CategoryRepository) UpdateCategory(ctx context.Context, userID string, categoryID uuid.UUID, payload *category.UpdateCategoryPayload) (*category.Category, error) {
 	stmt := `UPDATE todo_categories SET `
 
 	args := pgx.NamedArgs{
@@ -164,7 +187,7 @@ func (r *CategoryRepository) UpdateCategory(ctx context.Context, userID string, 
 }
 
 
-func (r *CategoryRepository) DeleteCategory(ctx context.Context, userID string, categoryID string) error {
+func (r *CategoryRepository) DeleteCategory(ctx context.Context, userID string, categoryID uuid.UUID) error {
 	stmt := `
 		DELETE FROM categories
 		WHERE user_id = @user_id AND id = @id

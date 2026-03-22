@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iancenry/jarvis/internal/errs"
 	"github.com/iancenry/jarvis/internal/model"
 	"github.com/iancenry/jarvis/internal/model/todo"
@@ -81,7 +82,7 @@ func (r *TodoRepository) CreateTodo(ctx context.Context, userID string, payload 
 	return &todoItem, nil
 }
 
-func (r *TodoRepository) GetTodoByID(ctx context.Context, userID string, todoID string) (*todo.PopulatedTodo, error) {
+func (r *TodoRepository) GetTodoByID(ctx context.Context, userID string, todoID uuid.UUID) (*todo.PopulatedTodo, error) {
 	stmt := `
 		SELECT t.*
 		CASE
@@ -131,7 +132,7 @@ func (r *TodoRepository) GetTodoByID(ctx context.Context, userID string, todoID 
 	
 }
 
-func (r *TodoRepository) CheckTodoExists(ctx context.Context, userID string, todoID string) (*todo.Todo, error) {
+func (r *TodoRepository) CheckTodoExists(ctx context.Context, userID string, todoID uuid.UUID) (*todo.Todo, error) {
 	stmt := `
 		SELECT * FROM todos
 		WHERE id = @id AND user_id = @user_id
@@ -372,7 +373,7 @@ func (r *TodoRepository) UpdateTodo(ctx context.Context, userID string, payload 
 	return &todoItem, nil
 }
 
-func (r *TodoRepository) DeleteTodo(ctx context.Context, userID string, todoID string) error {
+func (r *TodoRepository) DeleteTodo(ctx context.Context, userID string, todoID uuid.UUID) error {
 	stmt := `DELETE FROM todos WHERE id = @id AND user_id = @user_id`
 
 	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
