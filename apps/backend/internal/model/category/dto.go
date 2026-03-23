@@ -64,3 +64,13 @@ func (q *GetCategoriesQuery) Validate() error {
 
 	return nil
 }
+
+type DeleteCategoryByIDQuery struct {
+	ID uuid.UUID `param:"id" validate:"required,uuid"`
+}
+
+func (q *DeleteCategoryByIDQuery) Validate() error {
+	validate := validator.New()
+	return validate.Struct(q)
+
+}

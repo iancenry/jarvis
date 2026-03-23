@@ -104,3 +104,10 @@ func (q *DeleteTodoByIDQuery) Validate() error {
 	validate := validator.New()
 	return validate.Struct(q)
 }
+
+type GetTodoStatsQuery struct {}
+
+func (q *GetTodoStatsQuery) Validate() error {
+	validate := validator.New()
+	return validate.Struct(q)
+}
