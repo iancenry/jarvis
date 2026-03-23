@@ -5,6 +5,7 @@ import (
 
 	"github.com/iancenry/jarvis/internal/handler"
 	"github.com/iancenry/jarvis/internal/middleware"
+	v1 "github.com/iancenry/jarvis/internal/router/v1"
 	"github.com/iancenry/jarvis/internal/server"
 	"github.com/iancenry/jarvis/internal/service"
 	"github.com/labstack/echo/v4"
@@ -54,7 +55,9 @@ func NewRouter(s *server.Server, h *handler.Handlers, services *service.Services
 	registerSystemRoutes(router, h)
 
 	// register versioned routes
-	router.Group("/api/v1")
+	v1Router := router.Group("/api/v1")
+	v1.RegisterV1Routes(v1Router, h, middlewares)
+
 
 	return router
 }
