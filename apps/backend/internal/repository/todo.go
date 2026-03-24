@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iancenry/jarvis/internal/errs"
 	"github.com/iancenry/jarvis/internal/model"
+	"github.com/iancenry/jarvis/internal/model/attachment"
 	"github.com/iancenry/jarvis/internal/model/todo"
 	"github.com/iancenry/jarvis/internal/server"
 	"github.com/jackc/pgx/v5"
@@ -436,4 +437,118 @@ func (r *TodoRepository) GetTodoStats(ctx context.Context, userID string) (*todo
 	}
 
 	return &stats, nil
+}
+
+func (r *TodoRepository) AddAttachment(ctx context.Context, todoID uuid.UUID, userID string, s3Key string, fileName string, fileSize int64, mimeType string) (*attachment.Attachment, error) {
+	stmt := `
+	INSERT INTO todo_attachments (
+		todo_id,
+		name,
+		uploaded_by,
+		download_key,
+		file_size,
+		mime_type
+	)
+	VALUES (
+		@todo_id,
+		@name, 
+		@uploaded_by,
+		@download_key,
+		@file_size,
+		@mime_type
+	)
+	RETURNING *
+	`
+
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+		"todo_id": todoID,
+		"name": fileName,
+		"uploaded_by": userID,
+		"download_key": s3Key,
+		"file_size": fileSize,
+		"mime_type": mimeType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute add attachment query for todo_id=%s filename=%s: %w", todoID, fileName, err)
+	}
+
+	attachmentItem, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[attachment.Attachment])
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect added attachment for todo_id=%s filename=%s: %w", todoID, fileName, err)		
+	}
+
+	return &attachmentItem, nil
+}
+
+func (r *TodoRepository) GetTodoAttachment(ctx context.Context, todoID uuid.UUID, attachmentID uuid.UUID) (*attachment.Attachment, error) {
+	stmt := `
+	SELECT * FROM todo_attachments
+	WHERE id = @id AND todo_id = @todo_id
+	`
+
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+		"id": attachmentID,
+		"todo_id": todoID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute get todo attachment query for todo_id=%s attachment_id=%s: %w", todoID, attachmentID, err)
+	}
+
+	attachmentItem, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[attachment.Attachment])
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			code := "ATTACHMENT_NOT_FOUND"
+			return nil, errs.NewNotFoundError("attachment not found", false, &code)
+		}
+		return nil, fmt.Errorf("failed to collect todo attachment for todo_id=%s attachment_id=%s: %w", todoID, attachmentID, err)
+	}
+
+	return &attachmentItem, nil
+}
+
+func (r *TodoRepository) GetAttachmentsByTodoID(ctx context.Context, todoID uuid.UUID) ([]attachment.Attachment, error) {
+	stmt := `
+	SELECT * FROM todo_attachments
+	WHERE todo_id = @todo_id
+	ORDER BY created_at ASC
+	`
+
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+		"todo_id": todoID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute get attachments by todo id query for todo_id=%s: %w", todoID, err)
+	}
+
+	attachments, err := pgx.CollectRows(rows, pgx.RowToStructByName[attachment.Attachment])
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []attachment.Attachment{}, nil
+		}
+		return nil, fmt.Errorf("failed to collect attachments by todo id for todo_id=%s: %w", todoID, err)
+	}
+
+	return attachments, nil
+}
+
+func (r *TodoRepository) DeleteAttachment(ctx context.Context, todoID uuid.UUID, attachmentID uuid.UUID) error {
+	stmt := `DELETE FROM todo_attachments WHERE id = @id AND todo_id = @todo_id`
+
+	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
+		"id": attachmentID,
+		"todo_id": todoID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to execute delete attachment query for todo_id=%s attachment_id=%s: %w", todoID, attachmentID, err)
+	}
+
+	if result.RowsAffected() == 0 {
+		code := "ATTACHMENT_NOT_FOUND"
+		return errs.NewNotFoundError("attachment not found", false, &code)
+	}
+
+	return nil
 }

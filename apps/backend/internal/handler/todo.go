@@ -3,8 +3,10 @@ package handler
 import (
 	"net/http"
 
+	"github.com/iancenry/jarvis/internal/errs"
 	"github.com/iancenry/jarvis/internal/middleware"
 	"github.com/iancenry/jarvis/internal/model"
+	"github.com/iancenry/jarvis/internal/model/attachment"
 	"github.com/iancenry/jarvis/internal/model/todo"
 	"github.com/iancenry/jarvis/internal/server"
 	"github.com/iancenry/jarvis/internal/service"
@@ -93,5 +95,64 @@ func (th *TodoHandler) GetTodoStats(c echo.Context) error {
 		},
 		http.StatusOK,
 		&todo.GetTodoStatsQuery{},
+	)(c)
+}
+
+func (th *TodoHandler) AddAttachment(c echo.Context) error {
+	return Handle(
+		th.Handler,
+		func(c echo.Context, payload *attachment.UploadTodoAttachmentPayload) (*attachment.Attachment, error) {
+			userID := middleware.GetUserID(c)
+
+			form, err := c.MultipartForm()
+			if err != nil {
+				return nil, errs.NewBadRequestError("multipart form not found", false, nil, nil, nil)
+			}
+
+			files := form.File["file"]
+			if len(files) == 0 {
+				return nil, errs.NewBadRequestError("file not found in multipart form", false, nil, nil, nil)
+			}
+
+			if len(files) > 1 {
+				return nil, errs.NewBadRequestError("multiple files found in multipart form, only one file is allowed", false, nil, nil, nil)
+			}
+
+			return th.todoService.UploadTodoAttachment(c, userID, payload.TodoID, files[0])
+		},
+		http.StatusCreated,
+		&attachment.UploadTodoAttachmentPayload{},
+	)(c)
+}
+
+type presignedURLResponse struct {
+	URL string `json:"url"`
+}
+
+func (th *TodoHandler) GetAttachmentPresignedURL(c echo.Context) error {
+	return Handle(
+		th.Handler,
+		func(c echo.Context, payload *attachment.GetAttachmentPresignedURLPayload) (*presignedURLResponse, error) {
+			userID := middleware.GetUserID(c)
+			url, err := th.todoService.GetAttachmentPresignedURL(c, userID, payload.TodoID, payload.AttachmentID)
+			if err != nil {
+				return nil, err
+			}
+			return &presignedURLResponse{URL: url}, nil
+		},
+		http.StatusOK,
+		&attachment.GetAttachmentPresignedURLPayload{},
+	)(c)
+}
+
+func (th *TodoHandler) DeleteAttachment(c echo.Context) error {
+	return HandleNoContent(
+		th.Handler,
+		func(c echo.Context, payload *attachment.DeleteTodoAttachmentPayload) error {
+			userID := middleware.GetUserID(c)
+			return th.todoService.DeleteTodoAttachment(c, userID, payload.TodoID, payload.ID)
+		},
+		http.StatusNoContent,
+		&attachment.DeleteTodoAttachmentPayload{},
 	)(c)
 }

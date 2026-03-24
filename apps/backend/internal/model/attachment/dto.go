@@ -1,9 +1,12 @@
 package attachment
 
-import "github.com/go-playground/validator/v10"
+import (
+	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
+)
 
 type UploadTodoAttachmentPayload struct {
-	TodoID string `param:"id" validate:"required,uuid"`
+	TodoID uuid.UUID `param:"id" validate:"required,uuid"`
 }
 
 func (p *UploadTodoAttachmentPayload) Validate() error {
@@ -12,8 +15,8 @@ func (p *UploadTodoAttachmentPayload) Validate() error {
 }
 
 type DeleteTodoAttachmentPayload struct {
-	ID string `param:"id" validate:"required,uuid"`
-	TodoID string `param:"todoId" validate:"required,uuid"`
+	ID uuid.UUID `param:"id" validate:"required,uuid"`
+	TodoID uuid.UUID `param:"todoId" validate:"required,uuid"`
 }
 
 func (p *DeleteTodoAttachmentPayload) Validate() error {
@@ -22,8 +25,8 @@ func (p *DeleteTodoAttachmentPayload) Validate() error {
 }
 
 type GetAttachmentPresignedURLPayload struct {
-	TodoID string `param:"id" validate:"required,uuid"`
-	AttachmentID string `param:"attachmentId" validate:"required,uuid"`
+	TodoID uuid.UUID `param:"id" validate:"required,uuid"`
+	AttachmentID uuid.UUID `param:"attachmentId" validate:"required,uuid"`
 }
 
 func (p *GetAttachmentPresignedURLPayload) Validate() error {
