@@ -105,10 +105,19 @@ func (r *TodoRepository) GetTodoByID(ctx context.Context, userID string, todoID 
 			),
 			'[]'::jsonb
 		) AS comments,
+		COALESCE(
+			(
+				jsonb_agg(to_jsonb(camel (att))
+				ORDER BY att.created_at ASC)
+				FILTER (WHERE att.id IS NOT NULL)
+			),
+			'[]'::jsonb
+		) AS attachments,
 		FROM todos t
 			LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
 			LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
 			LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
+			LEFT JOIN todo_attachments att ON att.todo_id = t.id
 		WHERE t.id = @todo_id AND t.user_id = @user_id
 		GROUP BY t.id, c.id
 	`
@@ -181,10 +190,19 @@ func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *tod
 			),
 			'[]'::jsonb
 		) AS comments,
+		COALESCE(
+			(
+				jsonb_agg(to_jsonb(camel (att))
+				ORDER BY att.created_at ASC)
+				FILTER (WHERE att.id IS NOT NULL)
+			),
+			'[]'::jsonb
+		) AS attachments,
 		FROM todos t
 			LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
 			LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
 			LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
+			LEFT JOIN todo_attachments att ON att.todo_id = t.id
 	`
 
 	args := pgx.NamedArgs{

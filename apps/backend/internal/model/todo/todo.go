@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iancenry/jarvis/internal/model"
+	"github.com/iancenry/jarvis/internal/model/attachment"
 	"github.com/iancenry/jarvis/internal/model/category"
 	"github.com/iancenry/jarvis/internal/model/comment"
 )
@@ -52,9 +53,10 @@ type Todo struct {
 
 type PopulatedTodo struct {
 	Todo
-	Category *category.Category `json:"category,omitempty" db:"category,omitempty"`
-	Children []Todo `json:"children,omitempty" db:"children,omitempty"`
-	Comments []comment.Comment `json:"comments,omitempty" db:"comments,omitempty"`
+	Category *category.Category `json:"category" db:"category"`
+	Children []Todo `json:"children" db:"children"`
+	Comments []comment.Comment `json:"comments" db:"comments"`
+	Attachments []attachment.Attachment `json:"attachments" db:"attachments"`
 }
 
 type TodoStats struct {
