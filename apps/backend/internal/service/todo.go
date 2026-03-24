@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/google/uuid"
 	"github.com/iancenry/jarvis/internal/errs"
+	"github.com/iancenry/jarvis/internal/lib/aws"
 	"github.com/iancenry/jarvis/internal/middleware"
 	"github.com/iancenry/jarvis/internal/model"
 	"github.com/iancenry/jarvis/internal/model/todo"
@@ -15,13 +16,15 @@ type TodoService struct {
 	server *server.Server
 	todoRepo *repository.TodoRepository
 	categoryRepo *repository.CategoryRepository
+	awsClient *aws.AWS
 }
 
-func NewTodoService(s *server.Server, todoRepo *repository.TodoRepository, categoryRepo *repository.CategoryRepository) *TodoService {
+func NewTodoService(s *server.Server, todoRepo *repository.TodoRepository, categoryRepo *repository.CategoryRepository, awsClient *aws.AWS) *TodoService {
 	return &TodoService{
 		server: s,
 		todoRepo: todoRepo,
 		categoryRepo: categoryRepo,
+		awsClient: awsClient,
 	}
 }
 
