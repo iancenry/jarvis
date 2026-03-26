@@ -552,3 +552,230 @@ func (r *TodoRepository) DeleteAttachment(ctx context.Context, todoID uuid.UUID,
 
 	return nil
 }
+
+// CRON
+func (r *TodoRepository) GetTodosDueInHours(ctx context.Context, hours, limit int) ([]todo.Todo, error) {
+	stmt := `
+		select t.*, t.user_id from todos t
+		where t.due_date is not null
+		and t.due_date >= NOW()
+		and t.due_date <= NOW() + INTERVAL '@hours hours'
+		and t.status not in ('completed', 'archived')
+		order by t.due_date asc
+		limit @limit
+	`
+
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+		"hours": hours,
+		"limit": limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute get todos due in hours query for hours=%d: %w", hours, err)
+	}
+
+	todos, err := pgx.CollectRows(rows, pgx.RowToStructByName[todo.Todo])
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []todo.Todo{}, nil
+		}
+		return nil, fmt.Errorf("failed to collect todos due in hours for hours=%d: %w", hours, err)
+	}
+
+	return todos, nil
+	
+}
+
+func (r *TodoRepository) GetOverdueTodos(ctx context.Context, limit int) ([]todo.Todo, error) {
+	stmt := `
+		select t.*, t.user_id from todos t
+		where t.due_date is not null
+		and t.due_date < NOW()
+		and t.status not in ('completed', 'archived')
+		order by t.due_date asc
+		limit @limit
+	`
+
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+		"limit": limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute get overdue todos query: %w", err)
+	}
+
+	todos, err := pgx.CollectRows(rows, pgx.RowToStructByName[todo.Todo])
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []todo.Todo{}, nil
+		}
+		return nil, fmt.Errorf("failed to collect overdue todos: %w", err)
+	}
+
+	return todos, nil
+	
+}
+
+func (r *TodoRepository) ArchiveTodos(ctx context.Context, todoIDs []uuid.UUID) error {
+	stmt := `
+		UPDATE todos
+		SET status = 'archived
+		WHERE id = ANY(@ids::uuid[]) AND status != 'archived'
+	`
+
+	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
+		"ids": todoIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to execute archive todos query: %w", err)
+	}
+
+	if(result.RowsAffected() != int64(len(todoIDs))) {
+		return fmt.Errorf("not all todos were archived, expected to archive %d but archived %d", len(todoIDs), result.RowsAffected())
+	}
+
+	return nil
+}
+
+func (r *TodoRepository) GetWeeklyStatsForUsers(ctx context.Context, startDate, endDate time.Time) ([]todo.UserWeeklyStats, error) {
+	stmt := `
+	SELECT user_id,
+	COUNT (*) FILTER (WHERE created_at >= @start_date AND created_at <= @end_date) AS created_count,
+	COUNT (*) FILTER (WHERE status = 'completed' AND completed_at >= @start_date AND completed_at <= @end_date) AS completed_count,
+	COUNT (*) FILTER (WHERE status not in('completed', 'archived')) AS active_count,
+	COUNT (*) FILTER (WHERE due_date < NOW() AND status NOT IN ('completed', 'archived')) AS overdue_count
+	FROM todos
+	GROUP BY user_id
+	HAVING COUNT (*) > 0
+	`
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+		"start_date": startDate,
+		"end_date": endDate,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute get weekly stats for users query: %w", err)
+	}
+
+	stats, err := pgx.CollectRows(rows, pgx.RowToStructByName[todo.UserWeeklyStats])
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []todo.UserWeeklyStats{}, nil
+		}
+		return nil, fmt.Errorf("failed to collect weekly stats for users: %w", err)
+	}
+
+	return stats, nil	
+}
+
+func  (r *TodoRepository) GetCompletedTodosForUser(ctx context.Context, userID string, startDate, endDate time.Time) ([]todo.PopulatedTodo, error) {
+	stmt := `
+		SELECT t.*
+			CASE
+				WHEN c.id IS NOT NULL THEN to_jsonb(camel (c))
+				ELSE NULL
+			END AS category,
+			COALESCE(
+				jsonb_agg(
+					CASE
+						WHEN child.id IS NOT NULL THEN to_jsonb(camel (child))
+						ELSE NULL
+					END
+				) FILTER (WHERE child.id IS NOT NULL),
+				'[]'::jsonb
+			) AS children,
+			COALESCE(
+				jsonb_agg(
+					CASE
+						WHEN com.id IS NOT NULL THEN to_jsonb(camel (com))
+						ELSE NULL
+					END
+				) FILTER (WHERE com.id IS NOT NULL),
+				'[]'::jsonb
+			) AS comments,
+	FROM todos t
+	LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
+	LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
+	LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
+	WHERE t.user_id = @user_id
+	AND t.status = 'completed'
+	AND t.completed_at >= @start_date
+	AND t.completed_at <= @end_date
+	GROUP BY t.id, c.id
+	ORDER BY t.completed_at DESC
+	LIMIT 10
+	`
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+		"user_id":    userID,
+		"start_date": startDate,
+		"end_date":   endDate,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute get completed todos for user query: %w", err)
+	}
+
+	todos, err := pgx.CollectRows(rows, pgx.RowToStructByName[todo.PopulatedTodo])
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []todo.PopulatedTodo{}, nil
+		}
+		return nil, fmt.Errorf("failed to collect completed todos for user: %w", err)
+	}
+
+	return todos, nil
+}
+
+func (r *TodoRepository) GetOverdueTodosForUser(ctx context.Context, userID string) ([]todo.PopulatedTodo, error) {
+	stmt := `
+		SELECT t.*
+			CASE
+				WHEN c.id IS NOT NULL THEN to_jsonb(camel (c))
+				ELSE NULL
+			END AS category,
+			COALESCE(
+				jsonb_agg(
+					CASE
+						WHEN child.id IS NOT NULL THEN to_jsonb(camel (child))
+						ELSE NULL
+					END
+				) FILTER (WHERE child.id IS NOT NULL),
+				'[]'::jsonb
+			) AS children,
+			COALESCE(
+				jsonb_agg(
+					CASE
+						WHEN com.id IS NOT NULL THEN to_jsonb(camel (com))
+						ELSE NULL
+					END
+				) FILTER (WHERE com.id IS NOT NULL),
+				'[]'::jsonb
+			) AS comments,
+	FROM todos t
+		LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
+		LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
+		LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
+	WHERE t.user_id = @user_id
+		AND t.status NOT IN ('completed', 'archived')
+		AND t.due_date < NOW()
+	GROUP BY t.id, c.id
+	ORDER BY t.due_date ASC
+	`
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+		"user_id": userID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute get overdue todos for user query: %w", err)
+	}
+
+	todos, err := pgx.CollectRows(rows, pgx.RowToStructByName[todo.PopulatedTodo])
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []todo.PopulatedTodo{}, nil
+		}
+		return nil, fmt.Errorf("failed to collect overdue todos for user: %w", err)
+	}
+
+	return todos, nil
+}
