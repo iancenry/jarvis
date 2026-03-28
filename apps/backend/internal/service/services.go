@@ -28,6 +28,9 @@ func NewServices(s *server.Server, repos *repository.Repositories) (*Services, e
 	commentService := NewCommentService(s, repos.Comment, repos.Todo)
 	categoryService := NewCategoryService(s, repos.Category)
 
+	// Inject AuthService into JobService for email tasks that require user information
+	s.Job.SetAuthService(authService)
+
 	return &Services{
 		Job:  s.Job,
 		Auth: authService,

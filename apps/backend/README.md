@@ -17,7 +17,7 @@ backend/
 │   ├── repository/           # Data access layer
 │   ├── model/                # Domain models
 │   ├── middleware/           # HTTP middleware
-│   ├── lib/                  # Shared libraries
+│   ├── lib/                  # Shared libraries - reusable, domain-agnostic infrastructure code
 │   └── validation/           # Request validation
 ├── static/                   # Static files (OpenAPI spec)
 ├── templates/                # Email templates
