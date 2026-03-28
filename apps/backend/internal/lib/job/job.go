@@ -56,6 +56,8 @@ func (j *JobService) Start() error {
 	// Register task handlers
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(TaskWelcome, j.handleWelcomeEmailTask)
+	mux.HandleFunc(TaskReminderEmail, j.handleReminderEmailTask)
+	mux.HandleFunc(TaskWeeklyReportEmail, j.handleWeeklyReportEmailTask)
 
 	j.logger.Info().Msg("Starting background job server")
 	if err := j.server.Start(mux); err != nil {
