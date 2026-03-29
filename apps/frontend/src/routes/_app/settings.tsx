@@ -1,5 +1,3 @@
-import { useTheme } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +8,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   User,
   Palette,
-  Bell,
   Shield,
-  Database,
   ExternalLink,
   Sun,
   Moon,
@@ -20,6 +16,7 @@ import {
   Check,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useTheme } from "next-themes";
 
 export const Route = createFileRoute("/_app/settings")({
   component: SettingsPage,
@@ -28,6 +25,7 @@ export const Route = createFileRoute("/_app/settings")({
 function SettingsPage() {
   const { user } = useUser();
   const { theme, setTheme } = useTheme();
+  const activeTheme = theme ?? "system";
 
   const themes = [
     { value: "light", label: "Light", icon: Sun },
@@ -160,10 +158,11 @@ function SettingsPage() {
                 <div className="grid grid-cols-3 gap-3">
                   {themes.map((t) => {
                     const Icon = t.icon;
-                    const isActive = theme === t.value;
+                    const isActive = activeTheme === t.value;
                     return (
                       <button
                         key={t.value}
+                        type="button"
                         onClick={() => setTheme(t.value)}
                         className={cn(
                           "relative p-4 rounded-xl border-2 transition-all duration-200 press-scale",

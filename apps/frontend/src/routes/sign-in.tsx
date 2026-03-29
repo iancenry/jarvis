@@ -1,14 +1,38 @@
+import { FullPageLoader } from "@/components/full-page-loader";
 import { ThemeToggle } from "@/components/theme-toggle";
+import {
+  DEFAULT_AUTH_REDIRECT,
+  getAuthRouteUrl,
+  getPostAuthRedirect,
+  parseAuthSearch,
+} from "@/routes/-auth";
+import { useAuth } from "@clerk/clerk-react";
 import { SignIn } from "@clerk/clerk-react";
-import { createFileRoute } from "@tanstack/react-router";
+import { Navigate, createFileRoute } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 
 export const Route = createFileRoute("/sign-in")({
+  validateSearch: parseAuthSearch,
   component: SignInPage,
 });
 
 function SignInPage() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const { redirect: redirectTo } = Route.useSearch();
+
+  if (!isLoaded) {
+    return <FullPageLoader message="Checking your session..." />;
+  }
+
+  if (isSignedIn) {
+    return <Navigate to="/" href={getPostAuthRedirect(redirectTo)} replace />;
+  }
+
+  const redirectProps = redirectTo
+    ? { forceRedirectUrl: redirectTo }
+    : { fallbackRedirectUrl: DEFAULT_AUTH_REDIRECT };
+
   return (
     <div className="min-h-screen flex texture-noise">
       {/* Left side - Branding */}
@@ -100,8 +124,8 @@ function SignInPage() {
               }}
               routing="path"
               path="/sign-in"
-              signUpUrl="/sign-up"
-              fallbackRedirectUrl="/dashboard"
+              signUpUrl={getAuthRouteUrl("/sign-up", redirectTo)}
+              {...redirectProps}
             />
           </motion.div>
         </div>

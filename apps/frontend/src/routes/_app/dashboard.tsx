@@ -5,6 +5,10 @@ import { TodoCreateForm } from "@/components/todos/todo-create-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  defaultCategoryRouteSearch,
+  defaultTodoRouteSearch,
+} from "@/routes/-search";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   CheckCircle2,
@@ -133,26 +137,39 @@ function DashboardPage() {
                     <p className="text-sm text-muted-foreground font-medium">
                       Completion Rate
                     </p>
-                    <p className="text-3xl font-bold">{completionRate}%</p>
+                    {statsLoading ? (
+                      <Skeleton className="h-9 w-20" />
+                    ) : (
+                      <p className="text-3xl font-bold">{completionRate}%</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex-1 max-w-md">
-                  <div className="h-3 rounded-full bg-muted overflow-hidden">
-                    <motion.div
-                      className="h-full rounded-full bg-gradient-to-r from-accent to-accent/80"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${completionRate}%` }}
-                      transition={{
-                        duration: 0.8,
-                        delay: 0.3,
-                        ease: "easeOut",
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {stats?.completed || 0} of {stats?.total || 0} tasks
-                    completed
-                  </p>
+                  {statsLoading ? (
+                    <>
+                      <Skeleton className="h-3 w-full rounded-full" />
+                      <Skeleton className="mt-2 h-3 w-32" />
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-3 rounded-full bg-muted overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full bg-gradient-to-r from-accent to-accent/80"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${completionRate}%` }}
+                          transition={{
+                            duration: 0.8,
+                            delay: 0.3,
+                            ease: "easeOut",
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {stats?.completed || 0} of {stats?.total || 0} tasks
+                        completed
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -216,7 +233,7 @@ function DashboardPage() {
               <CardTitle className="text-lg font-semibold">
                 Recent Tasks
               </CardTitle>
-              <Link to="/todos">
+              <Link to="/todos" search={defaultTodoRouteSearch}>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -269,7 +286,7 @@ function DashboardPage() {
               <CardTitle className="text-lg font-semibold">
                 Categories
               </CardTitle>
-              <Link to="/categories">
+              <Link to="/categories" search={defaultCategoryRouteSearch}>
                 <Button
                   variant="ghost"
                   size="sm"

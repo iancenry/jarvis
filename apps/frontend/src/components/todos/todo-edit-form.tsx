@@ -1,9 +1,9 @@
 import { useGetAllCategories } from "@/api/hooks/use-category-query";
+import { useUploadTodoAttachment } from "@/api/hooks/use-todo-attachment-query";
 import {
   useUpdateTodo,
   type TGetTodosResponse,
 } from "@/api/hooks/use-todo-query";
-import { useUploadTodoAttachment } from "@/api/hooks/use-todo-attachment-query";
 import { TodoAttachments } from "@/components/todos/todo-attachments";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -41,7 +41,13 @@ import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { CalendarIcon, Upload, X } from "lucide-react";
-import { type ReactNode, useState, useEffect, useRef } from "react";
+import {
+  type ChangeEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
@@ -62,6 +68,8 @@ interface TodoEditFormProps {
   children: ReactNode;
 }
 
+const NO_CATEGORY_VALUE = "__none__";
+
 export function TodoEditForm({ todo, children }: TodoEditFormProps) {
   const [open, setOpen] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -79,7 +87,7 @@ export function TodoEditForm({ todo, children }: TodoEditFormProps) {
       description: todo.description || "",
       status: todo.status,
       priority: todo.priority,
-      categoryId: todo.categoryId || "",
+      categoryId: todo.categoryId ?? undefined,
       dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined,
     },
   });
@@ -91,31 +99,35 @@ export function TodoEditForm({ todo, children }: TodoEditFormProps) {
         description: todo.description || "",
         status: todo.status,
         priority: todo.priority,
-        categoryId: todo.categoryId || "",
+        categoryId: todo.categoryId ?? undefined,
         dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined,
       });
       setAttachments([]);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   }, [open, todo, form]);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    const validFiles = files.filter(file => {
+    const validFiles = files.filter((file) => {
       if (file.size > 10 * 1024 * 1024) {
         toast.error(`File ${file.name} is too large (max 10MB)`);
         return false;
       }
       return true;
     });
-    
-    setAttachments(prev => [...prev, ...validFiles]);
+
+    setAttachments((prev) => [...prev, ...validFiles]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
   const removeAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const onSubmit = async (data: UpdateTodoForm) => {
@@ -127,15 +139,15 @@ export function TodoEditForm({ todo, children }: TodoEditFormProps) {
           description: data.description || undefined,
           status: data.status,
           priority: data.priority,
-          categoryId: data.categoryId || undefined,
+          categoryId: data.categoryId ?? undefined,
           dueDate: data.dueDate?.toISOString(),
         },
       });
 
       // Upload new attachments if any
       if (attachments.length > 0) {
-        const uploadPromises = attachments.map(file => 
-          uploadAttachment.mutateAsync({ todoId: todo.id, file })
+        const uploadPromises = attachments.map((file) =>
+          uploadAttachment.mutateAsync({ todoId: todo.id, file }),
         );
         await Promise.all(uploadPromises);
       }
@@ -156,7 +168,10 @@ export function TodoEditForm({ todo, children }: TodoEditFormProps) {
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto px-1">
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-4 overflow-y-auto px-1"
+          >
             <FormField
               control={form.control}
               name="title"
@@ -203,7 +218,7 @@ export function TodoEditForm({ todo, children }: TodoEditFormProps) {
                     <FormLabel>Status</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                       disabled={updateTodo.isPending}
                     >
                       <FormControl>
@@ -251,7 +266,7 @@ export function TodoEditForm({ todo, children }: TodoEditFormProps) {
                     <FormLabel>Priority</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                       disabled={updateTodo.isPending}
                     >
                       <FormControl>
@@ -293,8 +308,12 @@ export function TodoEditForm({ todo, children }: TodoEditFormProps) {
                 <FormItem>
                   <FormLabel>Category</FormLabel>
                   <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    onValueChange={(value) =>
+                      field.onChange(
+                        value === NO_CATEGORY_VALUE ? undefined : value,
+                      )
+                    }
+                    value={field.value ?? NO_CATEGORY_VALUE}
                     disabled={updateTodo.isPending}
                   >
                     <FormControl>
@@ -303,7 +322,9 @@ export function TodoEditForm({ todo, children }: TodoEditFormProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="none">No Category</SelectItem>
+                      <SelectItem value={NO_CATEGORY_VALUE}>
+                        No Category
+                      </SelectItem>
                       {categories?.data?.map((category) => (
                         <SelectItem key={category.id} value={category.id}>
                           <div className="flex items-center gap-2">
@@ -375,7 +396,7 @@ export function TodoEditForm({ todo, children }: TodoEditFormProps) {
                   disabled={updateTodo.isPending || uploadAttachment.isPending}
                 />
               )}
-              
+
               {/* Add New Attachments */}
               <div className="space-y-3">
                 <Label>Add New Attachments</Label>
@@ -402,16 +423,23 @@ export function TodoEditForm({ todo, children }: TodoEditFormProps) {
                     Max 10MB per file
                   </span>
                 </div>
-                
+
                 {attachments.length > 0 && (
                   <div className="space-y-2">
-                    <h4 className="text-sm font-medium">New Attachments to Upload</h4>
+                    <h4 className="text-sm font-medium">
+                      New Attachments to Upload
+                    </h4>
                     {attachments.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-muted rounded-md"
+                      >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <Upload className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{file.name}</p>
+                            <p className="text-sm font-medium truncate">
+                              {file.name}
+                            </p>
                             <p className="text-xs text-muted-foreground">
                               {(file.size / (1024 * 1024)).toFixed(2)} MB
                             </p>
@@ -442,8 +470,15 @@ export function TodoEditForm({ todo, children }: TodoEditFormProps) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={updateTodo.isPending || uploadAttachment.isPending}>
-                {updateTodo.isPending ? "Updating..." : uploadAttachment.isPending ? "Uploading..." : "Update Task"}
+              <Button
+                type="submit"
+                disabled={updateTodo.isPending || uploadAttachment.isPending}
+              >
+                {updateTodo.isPending
+                  ? "Updating..."
+                  : uploadAttachment.isPending
+                    ? "Uploading..."
+                    : "Update Task"}
               </Button>
             </div>
           </form>

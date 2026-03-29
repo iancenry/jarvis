@@ -44,7 +44,7 @@ const fetchAllTodos = async ({
   query?: TGetTodosQuery;
 }): Promise<TGetTodosResponse> => {
   const res = await api.Todo.getTodos({ query });
-  
+
   if (res.status === 200) {
     return res.body;
   } else {
@@ -60,7 +60,7 @@ const fetchTodoById = async ({
   id: string;
 }): Promise<TGetTodoByIdResponse> => {
   const res = await api.Todo.getTodoById({ params: { id } });
-  
+
   if (res.status === 200) {
     return res.body;
   } else {
@@ -76,7 +76,7 @@ const createTodo = async ({
   data: TCreateTodoPayload;
 }): Promise<TCreateTodoResponse> => {
   const res = await api.Todo.createTodo({ body: data });
-  
+
   if (res.status === 201) {
     return res.body;
   } else {
@@ -94,7 +94,7 @@ const updateTodo = async ({
   data: TUpdateTodoPayload;
 }): Promise<TUpdateTodoResponse> => {
   const res = await api.Todo.updateTodo({ params: { id }, body: data });
-  
+
   if (res.status === 200) {
     return res.body;
   } else {
@@ -110,7 +110,7 @@ const deleteTodo = async ({
   id: string;
 }): Promise<void> => {
   const res = await api.Todo.deleteTodo({ params: { id } });
-  
+
   if (res.status !== 204) {
     throw res.body;
   }
@@ -122,7 +122,7 @@ const fetchTodoStats = async ({
   api: TApiClient;
 }): Promise<TTodoStatsResponse> => {
   const res = await api.Todo.getTodoStats();
-  
+
   if (res.status === 200) {
     return res.body;
   } else {
@@ -141,13 +141,6 @@ export const useGetAllTodos = ({
   return useQuery({
     queryKey: [QUERY_KEYS.TODOS.ALL_TODOS, query],
     queryFn: () => fetchAllTodos({ api, query }),
-    placeholderData: {
-      data: [],
-      total: 0,
-      page: 1,
-      limit: 20,
-      totalPages: 0,
-    },
   });
 };
 
@@ -172,7 +165,8 @@ export const useCreateTodo = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ body }: { body: TCreateTodoPayload }) => createTodo({ api, data: body }),
+    mutationFn: ({ body }: { body: TCreateTodoPayload }) =>
+      createTodo({ api, data: body }),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.TODOS.ALL_TODOS],
@@ -192,8 +186,13 @@ export const useUpdateTodo = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ todoId, body }: { todoId: string; body: TUpdateTodoPayload }) =>
-      updateTodo({ api, id: todoId, data: body }),
+    mutationFn: ({
+      todoId,
+      body,
+    }: {
+      todoId: string;
+      body: TUpdateTodoPayload;
+    }) => updateTodo({ api, id: todoId, data: body }),
     onSuccess: (_, { todoId }) => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.TODOS.ALL_TODOS],
@@ -216,7 +215,8 @@ export const useDeleteTodo = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ todoId }: { todoId: string }) => deleteTodo({ api, id: todoId }),
+    mutationFn: ({ todoId }: { todoId: string }) =>
+      deleteTodo({ api, id: todoId }),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.TODOS.ALL_TODOS],
@@ -237,13 +237,5 @@ export const useGetTodoStats = () => {
   return useQuery({
     queryKey: [QUERY_KEYS.TODOS.TODO_STATS],
     queryFn: () => fetchTodoStats({ api }),
-    placeholderData: {
-      total: 0,
-      draft: 0,
-      active: 0,
-      completed: 0,
-      archived: 0,
-      overdue: 0,
-    },
   });
 };

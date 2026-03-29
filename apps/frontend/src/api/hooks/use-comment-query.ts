@@ -109,7 +109,6 @@ export const useGetCommentsByTodoId = ({
     queryKey: [QUERY_KEYS.COMMENTS.GET_COMMENTS_BY_TODO_ID, todoId],
     queryFn: () => fetchCommentsByTodoId({ api, todoId }),
     enabled: enabled && !!todoId,
-    placeholderData: [],
   });
 };
 

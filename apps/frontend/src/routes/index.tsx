@@ -1,7 +1,7 @@
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@clerk/clerk-react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Navigate, createFileRoute, Link } from "@tanstack/react-router";
 import {
   CheckCircle2,
   Users2,
@@ -11,25 +11,16 @@ import {
   Sparkles,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect } from "react";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
 });
 
 function LandingPage() {
-  const { isSignedIn, isLoaded } = useAuth();
-  const navigate = useNavigate();
-
-  // Redirect to dashboard if already signed in
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      navigate({ to: "/dashboard" });
-    }
-  }, [isLoaded, isSignedIn, navigate]);
+  const { isLoaded, isSignedIn } = useAuth();
 
   if (isLoaded && isSignedIn) {
-    return null;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return (

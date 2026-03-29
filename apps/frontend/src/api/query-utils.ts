@@ -6,7 +6,7 @@ export const QUERY_KEYS = {
     TODO_ATTACHMENTS: "todoAttachments",
   },
   CATEGORIES: {
-    ALL_CATEGORIES: "allCategories", 
+    ALL_CATEGORIES: "allCategories",
     GET_CATEGORY_BY_ID: "getCategoryById",
   },
   COMMENTS: {

@@ -26,6 +26,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  buildCategoryApiQuery,
+  hasActiveCategoryFilters,
+  parseCategoryRouteSearch,
+  type CategoryRouteSearch,
+} from "@/routes/-search";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Plus,
@@ -39,31 +45,66 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
-import { useState } from "react";
+import { motion } from "motion/react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/categories")({
+  validateSearch: parseCategoryRouteSearch,
   component: CategoriesPage,
 });
 
 function CategoriesPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [page, setPage] = useState(1);
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
 
-  const debouncedSearch = useDebounce(searchQuery, 300);
+  const [searchInput, setSearchInput] = useState(search.q ?? "");
+
+  const debouncedSearch = useDebounce(searchInput, 300);
+
+  useEffect(() => {
+    setSearchInput(search.q ?? "");
+  }, [search.q]);
+
+  useEffect(() => {
+    if (debouncedSearch === (search.q ?? "")) {
+      return;
+    }
+
+    void navigate({
+      search: (prev: CategoryRouteSearch) => ({
+        ...prev,
+        q: debouncedSearch || undefined,
+        page: 1,
+      }),
+      replace: true,
+    });
+  }, [debouncedSearch, navigate, search.q]);
 
   const { data: categories, isLoading } = useGetAllCategories({
-    query: {
-      page,
-      limit: 20,
-      search: debouncedSearch || undefined,
-      sort: "name",
-      order: "asc",
-    },
+    query: buildCategoryApiQuery(search),
   });
 
   const deleteCategory = useDeleteCategory();
+
+  const updateSearch = (
+    updater: (prev: CategoryRouteSearch) => CategoryRouteSearch,
+    replace = false,
+  ) => {
+    void navigate({ search: updater, replace });
+  };
+
+  const clearSearch = () => {
+    setSearchInput("");
+    updateSearch(
+      (prev) => ({
+        ...prev,
+        q: undefined,
+        page: 1,
+      }),
+      true,
+    );
+  };
 
   const handleDeleteCategory = async (
     categoryId: string,
@@ -76,6 +117,9 @@ function CategoriesPage() {
       toast.error("Failed to delete category");
     }
   };
+
+  const hasActiveFilters =
+    Boolean(searchInput.trim()) || hasActiveCategoryFilters(search);
 
   return (
     <div className="space-y-6">
@@ -119,13 +163,14 @@ function CategoriesPage() {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search categories..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-10 h-11 bg-muted/30 border-transparent focus:border-accent focus:bg-background transition-colors"
               />
-              {searchQuery && (
+              {searchInput && (
                 <button
-                  onClick={() => setSearchQuery("")}
+                  type="button"
+                  onClick={clearSearch}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -283,11 +328,11 @@ function CategoriesPage() {
               No categories found
             </p>
             <p className="text-sm text-muted-foreground/70 mt-1">
-              {searchQuery
+              {hasActiveFilters
                 ? "Try a different search term"
                 : "Create your first category to organize tasks"}
             </p>
-            {!searchQuery && (
+            {!hasActiveFilters && (
               <CategoryCreateForm>
                 <Button variant="outline" className="mt-4">
                   <Plus className="w-4 h-4 mr-2" />
@@ -307,14 +352,19 @@ function CategoriesPage() {
             transition={{ delay: 0.2 }}
           >
             <p className="text-sm text-muted-foreground">
-              Page {page} of {categories.totalPages}
+              Page {search.page} of {categories.totalPages}
             </p>
             <div className="flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
+                disabled={search.page <= 1}
+                onClick={() =>
+                  updateSearch((prev) => ({
+                    ...prev,
+                    page: prev.page - 1,
+                  }))
+                }
                 className="gap-1"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -323,8 +373,13 @@ function CategoriesPage() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page >= categories.totalPages}
-                onClick={() => setPage(page + 1)}
+                disabled={search.page >= categories.totalPages}
+                onClick={() =>
+                  updateSearch((prev) => ({
+                    ...prev,
+                    page: prev.page + 1,
+                  }))
+                }
                 className="gap-1"
               >
                 Next

@@ -1,9 +1,6 @@
 import { useGetAllCategories } from "@/api/hooks/use-category-query";
 import { useDebounce } from "@/api/hooks/use-debounce";
-import {
-  useGetAllTodos,
-  type TGetTodosQuery,
-} from "@/api/hooks/use-todo-query";
+import { useGetAllTodos } from "@/api/hooks/use-todo-query";
 import { TodoCard } from "@/components/todos/todo-card";
 import { TodoCreateForm } from "@/components/todos/todo-create-form";
 import { Button } from "@/components/ui/button";
@@ -20,6 +17,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import {
+  buildTodoApiQuery,
+  defaultTodoRouteSearch,
+  getTodoSortValue,
+  hasActiveTodoFilters,
+  parseTodoRouteSearch,
+  type TodoRouteSearch,
+} from "@/routes/-search";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Plus,
@@ -34,15 +39,16 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
-import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/_app/todos")({
+  validateSearch: parseTodoRouteSearch,
   component: TodosPage,
 });
 
-type TodoStatus = "draft" | "active" | "completed" | "archived";
-type TodoPriority = "low" | "medium" | "high" | "all";
+type TodoStatus = TodoRouteSearch["status"];
+type TodoPriority = TodoRouteSearch["priority"];
 
 const statusConfig = {
   all: { label: "All", icon: CheckCircle2, color: "text-foreground" },
@@ -54,68 +60,106 @@ const statusConfig = {
     icon: Archive,
     color: "text-muted-foreground",
   },
-};
+} as const;
 
 function TodosPage() {
-  const [activeTab, setActiveTab] = useState<TodoStatus | "all">("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedPriority, setSelectedPriority] = useState<TodoPriority>("all");
-  const [sortBy, setSortBy] = useState<TGetTodosQuery["sort"]>("updated_at");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+
+  const [searchInput, setSearchInput] = useState(search.q ?? "");
   const [selectedTodos, setSelectedTodos] = useState<string[]>([]);
-  const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
 
-  const debouncedSearch = useDebounce(searchQuery, 300);
+  const debouncedSearch = useDebounce(searchInput, 300);
+
+  useEffect(() => {
+    setSearchInput(search.q ?? "");
+  }, [search.q]);
+
+  useEffect(() => {
+    if (debouncedSearch === (search.q ?? "")) {
+      return;
+    }
+
+    void navigate({
+      search: (prev: TodoRouteSearch) => ({
+        ...prev,
+        q: debouncedSearch || undefined,
+        page: 1,
+      }),
+      replace: true,
+    });
+  }, [debouncedSearch, navigate, search.q]);
+
+  useEffect(() => {
+    setSelectedTodos([]);
+  }, [
+    search.categoryId,
+    search.order,
+    search.page,
+    search.priority,
+    search.q,
+    search.sort,
+    search.status,
+  ]);
 
   const { data: todos, isLoading } = useGetAllTodos({
-    query: {
-      page,
-      limit: 20,
-      search: debouncedSearch || undefined,
-      status: activeTab === "all" ? undefined : activeTab,
-      categoryId: selectedCategory === "all" ? undefined : selectedCategory,
-      priority: selectedPriority === "all" ? undefined : selectedPriority,
-      sort: sortBy,
-      order: sortOrder,
-    },
+    query: buildTodoApiQuery(search),
   });
 
   const { data: categories } = useGetAllCategories({
     query: { page: 1, limit: 100 },
   });
 
+  const updateSearch = (
+    updater: (prev: TodoRouteSearch) => TodoRouteSearch,
+    replace = false,
+  ) => {
+    void navigate({ search: updater, replace });
+  };
+
   const handleSelectTodo = (todoId: string, checked: boolean) => {
     if (checked) {
-      setSelectedTodos((prev) => [...prev, todoId]);
-    } else {
-      setSelectedTodos((prev) => prev.filter((id) => id !== todoId));
+      setSelectedTodos((prev) =>
+        prev.includes(todoId) ? prev : [...prev, todoId],
+      );
+      return;
     }
+
+    setSelectedTodos((prev) => prev.filter((id) => id !== todoId));
   };
 
   const handleSelectAll = (checked: boolean) => {
     if (checked && todos?.data) {
       setSelectedTodos(todos.data.map((todo) => todo.id));
-    } else {
-      setSelectedTodos([]);
+      return;
     }
+
+    setSelectedTodos([]);
   };
 
   const clearFilters = () => {
-    setSearchQuery("");
-    setSelectedCategory("all");
-    setSelectedPriority("all");
-    setSortBy("updated_at");
-    setSortOrder("desc");
-    setPage(1);
+    setSearchInput("");
+    updateSearch(() => defaultTodoRouteSearch, true);
+  };
+
+  const clearSearch = () => {
+    setSearchInput("");
+    updateSearch(
+      (prev) => ({
+        ...prev,
+        q: undefined,
+        page: 1,
+      }),
+      true,
+    );
   };
 
   const hasActiveFilters =
-    searchQuery ||
-    selectedCategory !== "all" ||
-    selectedPriority !== "all" ||
-    sortBy !== "updated_at";
+    Boolean(searchInput.trim()) || hasActiveTodoFilters(search);
+  const visibleTodoCount = todos?.data.length ?? 0;
+  const allVisibleTodosSelected =
+    visibleTodoCount > 0 && selectedTodos.length === visibleTodoCount;
 
   return (
     <div className="space-y-6">
@@ -161,13 +205,14 @@ function TodosPage() {
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search tasks..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="pl-10 h-11 bg-muted/30 border-transparent focus:border-accent focus:bg-background transition-colors"
                 />
-                {searchQuery && (
+                {searchInput && (
                   <button
-                    onClick={() => setSearchQuery("")}
+                    type="button"
+                    onClick={clearSearch}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <X className="w-4 h-4" />
@@ -176,7 +221,7 @@ function TodosPage() {
               </div>
               <Button
                 variant={showFilters ? "secondary" : "outline"}
-                onClick={() => setShowFilters(!showFilters)}
+                onClick={() => setShowFilters((prev) => !prev)}
                 className={cn(
                   "gap-2 shrink-0",
                   hasActiveFilters && "ring-2 ring-accent/20",
@@ -203,8 +248,17 @@ function TodosPage() {
                   <div className="pt-4 border-t border-border/50">
                     <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       <Select
-                        value={selectedCategory}
-                        onValueChange={setSelectedCategory}
+                        value={search.categoryId ?? "all"}
+                        onValueChange={(value) =>
+                          updateSearch(
+                            (prev) => ({
+                              ...prev,
+                              categoryId: value === "all" ? undefined : value,
+                              page: 1,
+                            }),
+                            true,
+                          )
+                        }
                       >
                         <SelectTrigger className="bg-muted/30 border-transparent focus:border-accent">
                           <SelectValue placeholder="Category" />
@@ -226,9 +280,16 @@ function TodosPage() {
                       </Select>
 
                       <Select
-                        value={selectedPriority}
+                        value={search.priority}
                         onValueChange={(value) =>
-                          setSelectedPriority(value as TodoPriority)
+                          updateSearch(
+                            (prev) => ({
+                              ...prev,
+                              priority: value as TodoPriority,
+                              page: 1,
+                            }),
+                            true,
+                          )
                         }
                       >
                         <SelectTrigger className="bg-muted/30 border-transparent focus:border-accent">
@@ -258,11 +319,22 @@ function TodosPage() {
                       </Select>
 
                       <Select
-                        value={`${sortBy}-${sortOrder}`}
+                        value={getTodoSortValue(search)}
                         onValueChange={(value) => {
-                          const [sort, order] = value.split("-");
-                          setSortBy(sort as TGetTodosQuery["sort"]);
-                          setSortOrder(order as "asc" | "desc");
+                          const [sort, order] = value.split("-") as [
+                            TodoRouteSearch["sort"],
+                            TodoRouteSearch["order"],
+                          ];
+
+                          updateSearch(
+                            (prev) => ({
+                              ...prev,
+                              sort,
+                              order,
+                              page: 1,
+                            }),
+                            true,
+                          );
                         }}
                       >
                         <SelectTrigger className="bg-muted/30 border-transparent focus:border-accent">
@@ -307,8 +379,17 @@ function TodosPage() {
         transition={{ duration: 0.4, delay: 0.15 }}
       >
         <Tabs
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as TodoStatus | "all")}
+          value={search.status}
+          onValueChange={(value) =>
+            updateSearch(
+              (prev) => ({
+                ...prev,
+                status: value as TodoStatus,
+                page: 1,
+              }),
+              true,
+            )
+          }
         >
           <TabsList className="h-auto p-1.5 bg-muted/50 flex-wrap">
             {(
@@ -322,7 +403,7 @@ function TodosPage() {
                   value={status}
                   className={cn(
                     "gap-2 px-4 py-2 data-[state=active]:shadow-soft",
-                    activeTab === status && config.color,
+                    search.status === status && config.color,
                   )}
                 >
                   <Icon className="w-4 h-4" />
@@ -332,7 +413,7 @@ function TodosPage() {
             })}
           </TabsList>
 
-          <TabsContent value={activeTab} className="mt-6 space-y-4">
+          <TabsContent value={search.status} className="mt-6 space-y-4">
             {/* Bulk Selection */}
             <AnimatePresence>
               {selectedTodos.length > 0 && (
@@ -345,8 +426,10 @@ function TodosPage() {
                     <CardContent className="py-3 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Checkbox
-                          checked={selectedTodos.length === todos?.data?.length}
-                          onCheckedChange={handleSelectAll}
+                          checked={allVisibleTodosSelected}
+                          onCheckedChange={(checked) =>
+                            handleSelectAll(Boolean(checked))
+                          }
                         />
                         <span className="text-sm font-medium">
                           {selectedTodos.length} selected
@@ -392,8 +475,10 @@ function TodosPage() {
                       <CardContent className="py-3">
                         <div className="flex items-center gap-3">
                           <Checkbox
-                            checked={selectedTodos.length === todos.data.length}
-                            onCheckedChange={handleSelectAll}
+                            checked={allVisibleTodosSelected}
+                            onCheckedChange={(checked) =>
+                              handleSelectAll(Boolean(checked))
+                            }
                           />
                           <span className="text-sm text-muted-foreground">
                             Select all {todos.data.length} tasks
@@ -411,7 +496,7 @@ function TodosPage() {
                           <Checkbox
                             checked={selectedTodos.includes(todo.id)}
                             onCheckedChange={(checked) =>
-                              handleSelectTodo(todo.id, checked as boolean)
+                              handleSelectTodo(todo.id, Boolean(checked))
                             }
                           />
                         </div>
@@ -426,16 +511,21 @@ function TodosPage() {
                   {todos.totalPages > 1 && (
                     <div className="flex items-center justify-between pt-4">
                       <p className="text-sm text-muted-foreground">
-                        Showing {(page - 1) * 20 + 1} to{" "}
-                        {Math.min(page * 20, todos.total)} of {todos.total}{" "}
-                        tasks
+                        Showing {(search.page - 1) * 20 + 1} to{" "}
+                        {Math.min(search.page * 20, todos.total)} of{" "}
+                        {todos.total} tasks
                       </p>
                       <div className="flex gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={page <= 1}
-                          onClick={() => setPage(page - 1)}
+                          disabled={search.page <= 1}
+                          onClick={() =>
+                            updateSearch((prev) => ({
+                              ...prev,
+                              page: prev.page - 1,
+                            }))
+                          }
                           className="gap-1"
                         >
                           <ChevronLeft className="w-4 h-4" />
@@ -444,8 +534,13 @@ function TodosPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={page >= todos.totalPages}
-                          onClick={() => setPage(page + 1)}
+                          disabled={search.page >= todos.totalPages}
+                          onClick={() =>
+                            updateSearch((prev) => ({
+                              ...prev,
+                              page: prev.page + 1,
+                            }))
+                          }
                           className="gap-1"
                         >
                           Next

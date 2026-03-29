@@ -1,5 +1,5 @@
 import tailwindcss from "@tailwindcss/vite";
-import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
@@ -12,5 +12,13 @@ export default defineConfig({
       "@": "/src",
     },
   },
-  plugins: [TanStackRouterVite(), react(), tailwindcss()],
+  plugins: [
+    tanstackStart({
+      spa: {
+        enabled: true,
+      },
+    }),
+    react(),
+    tailwindcss(),
+  ],
 });

@@ -1,3 +1,4 @@
+import { FullPageLoader } from "@/components/full-page-loader";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -5,10 +6,10 @@ import { cn } from "@/lib/utils";
 import { useAuth, UserButton } from "@clerk/clerk-react";
 import {
   createFileRoute,
-  Outlet,
   Link,
+  Navigate,
+  Outlet,
   useLocation,
-  useNavigate,
 } from "@tanstack/react-router";
 import {
   LayoutDashboard,
@@ -20,7 +21,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect } from "react";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -36,36 +36,16 @@ const navigation = [
 function AppLayout() {
   const { isLoaded, isSignedIn } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
-
-  // Redirect to sign-in if not authenticated
-  useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      navigate({ to: "/sign-in" });
-    }
-  }, [isLoaded, isSignedIn, navigate]);
 
   // Loading state
   if (!isLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background texture-noise">
-        <motion.div
-          className="flex flex-col items-center gap-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent to-accent/70 flex items-center justify-center shadow-soft animate-pulse">
-            <Sparkles className="w-6 h-6 text-accent-foreground" />
-          </div>
-          <p className="text-muted-foreground text-sm">Loading...</p>
-        </motion.div>
-      </div>
-    );
+    return <FullPageLoader message="Loading your workspace..." textured />;
   }
 
-  // Show nothing while redirecting
   if (!isSignedIn) {
-    return null;
+    return (
+      <Navigate to="/sign-in" search={{ redirect: location.href }} replace />
+    );
   }
 
   return (

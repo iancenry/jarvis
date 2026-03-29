@@ -1,6 +1,6 @@
 import { useGetAllCategories } from "@/api/hooks/use-category-query";
-import { useCreateTodo } from "@/api/hooks/use-todo-query";
 import { useUploadTodoAttachment } from "@/api/hooks/use-todo-attachment-query";
+import { useCreateTodo } from "@/api/hooks/use-todo-query";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { CalendarIcon, Upload, X } from "lucide-react";
-import { type ReactNode, useState, useRef } from "react";
+import { type ChangeEvent, type ReactNode, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
@@ -56,6 +56,8 @@ interface TodoCreateFormProps {
   children: ReactNode;
 }
 
+const NO_CATEGORY_VALUE = "__none__";
+
 export function TodoCreateForm({ children }: TodoCreateFormProps) {
   const [open, setOpen] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -72,28 +74,41 @@ export function TodoCreateForm({ children }: TodoCreateFormProps) {
       title: "",
       description: "",
       priority: "medium",
-      categoryId: "",
+      categoryId: undefined,
     },
   });
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+
+    if (!nextOpen) {
+      form.reset();
+      setAttachments([]);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    const validFiles = files.filter(file => {
+    const validFiles = files.filter((file) => {
       if (file.size > 10 * 1024 * 1024) {
         toast.error(`File ${file.name} is too large (max 10MB)`);
         return false;
       }
       return true;
     });
-    
-    setAttachments(prev => [...prev, ...validFiles]);
+
+    setAttachments((prev) => [...prev, ...validFiles]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
   const removeAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const onSubmit = async (data: CreateTodoForm) => {
@@ -103,30 +118,28 @@ export function TodoCreateForm({ children }: TodoCreateFormProps) {
           title: data.title,
           description: data.description || undefined,
           priority: data.priority,
-          categoryId: data.categoryId || undefined,
+          categoryId: data.categoryId ?? undefined,
           dueDate: data.dueDate?.toISOString(),
         },
       });
 
       // Upload attachments if any
       if (attachments.length > 0) {
-        const uploadPromises = attachments.map(file => 
-          uploadAttachment.mutateAsync({ todoId: createdTodo.id, file })
+        const uploadPromises = attachments.map((file) =>
+          uploadAttachment.mutateAsync({ todoId: createdTodo.id, file }),
         );
         await Promise.all(uploadPromises);
       }
 
       toast.success("Task created successfully!");
-      form.reset();
-      setAttachments([]);
-      setOpen(false);
+      handleOpenChange(false);
     } catch {
       toast.error("Failed to create task");
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
@@ -181,7 +194,7 @@ export function TodoCreateForm({ children }: TodoCreateFormProps) {
                     <FormLabel>Priority</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                       disabled={createTodo.isPending}
                     >
                       <FormControl>
@@ -222,8 +235,12 @@ export function TodoCreateForm({ children }: TodoCreateFormProps) {
                   <FormItem>
                     <FormLabel>Category</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      onValueChange={(value) =>
+                        field.onChange(
+                          value === NO_CATEGORY_VALUE ? undefined : value,
+                        )
+                      }
+                      value={field.value ?? NO_CATEGORY_VALUE}
                       disabled={createTodo.isPending}
                     >
                       <FormControl>
@@ -232,7 +249,9 @@ export function TodoCreateForm({ children }: TodoCreateFormProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="none">No Category</SelectItem>
+                        <SelectItem value={NO_CATEGORY_VALUE}>
+                          No Category
+                        </SelectItem>
                         {categories?.data?.map((category) => (
                           <SelectItem key={category.id} value={category.id}>
                             <div className="flex items-center gap-2">
@@ -321,15 +340,20 @@ export function TodoCreateForm({ children }: TodoCreateFormProps) {
                   Max 10MB per file
                 </span>
               </div>
-              
+
               {attachments.length > 0 && (
                 <div className="space-y-2">
                   {attachments.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-2 bg-muted rounded-md"
+                    >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <Upload className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{file.name}</p>
+                          <p className="text-sm font-medium truncate">
+                            {file.name}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {(file.size / (1024 * 1024)).toFixed(2)} MB
                           </p>
@@ -359,8 +383,15 @@ export function TodoCreateForm({ children }: TodoCreateFormProps) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createTodo.isPending || uploadAttachment.isPending}>
-                {createTodo.isPending ? "Creating..." : uploadAttachment.isPending ? "Uploading..." : "Create Task"}
+              <Button
+                type="submit"
+                disabled={createTodo.isPending || uploadAttachment.isPending}
+              >
+                {createTodo.isPending
+                  ? "Creating..."
+                  : uploadAttachment.isPending
+                    ? "Uploading..."
+                    : "Create Task"}
               </Button>
             </div>
           </form>

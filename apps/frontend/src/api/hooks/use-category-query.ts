@@ -7,7 +7,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ServerInferResponseBody } from "@ts-rest/core";
 
 // Type definitions for Category operations
-export type TGetCategoriesQuery = TRequests["Category"]["getCategories"]["query"];
+export type TGetCategoriesQuery =
+  TRequests["Category"]["getCategories"]["query"];
 export type TGetCategoriesResponse = ServerInferResponseBody<
   typeof apiContract.Category.getCategories,
   200
@@ -18,13 +19,15 @@ export type TGetCategoryByIdResponse = ServerInferResponseBody<
   200
 >;
 
-export type TCreateCategoryPayload = TRequests["Category"]["createCategory"]["body"];
+export type TCreateCategoryPayload =
+  TRequests["Category"]["createCategory"]["body"];
 export type TCreateCategoryResponse = ServerInferResponseBody<
   typeof apiContract.Category.createCategory,
   201
 >;
 
-export type TUpdateCategoryPayload = TRequests["Category"]["updateCategory"]["body"];
+export type TUpdateCategoryPayload =
+  TRequests["Category"]["updateCategory"]["body"];
 export type TUpdateCategoryResponse = ServerInferResponseBody<
   typeof apiContract.Category.updateCategory,
   200
@@ -39,7 +42,7 @@ const fetchAllCategories = async ({
   query?: TGetCategoriesQuery;
 }): Promise<TGetCategoriesResponse> => {
   const res = await api.Category.getCategories({ query });
-  
+
   if (res.status === 200) {
     return res.body;
   } else {
@@ -55,7 +58,7 @@ const fetchCategoryById = async ({
   id: string;
 }): Promise<TGetCategoryByIdResponse> => {
   const res = await api.Category.getCategoryById({ params: { id } });
-  
+
   if (res.status === 200) {
     return res.body;
   } else {
@@ -71,7 +74,7 @@ const createCategory = async ({
   data: TCreateCategoryPayload;
 }): Promise<TCreateCategoryResponse> => {
   const res = await api.Category.createCategory({ body: data });
-  
+
   if (res.status === 201) {
     return res.body;
   } else {
@@ -89,7 +92,7 @@ const updateCategory = async ({
   data: TUpdateCategoryPayload;
 }): Promise<TUpdateCategoryResponse> => {
   const res = await api.Category.updateCategory({ params: { id }, body: data });
-  
+
   if (res.status === 200) {
     return res.body;
   } else {
@@ -105,7 +108,7 @@ const deleteCategory = async ({
   id: string;
 }): Promise<void> => {
   const res = await api.Category.deleteCategory({ params: { id } });
-  
+
   if (res.status !== 204) {
     throw res.body;
   }
@@ -122,13 +125,6 @@ export const useGetAllCategories = ({
   return useQuery({
     queryKey: [QUERY_KEYS.CATEGORIES.ALL_CATEGORIES, query],
     queryFn: () => fetchAllCategories({ api, query }),
-    placeholderData: {
-      data: [],
-      total: 0,
-      page: 1,
-      limit: 50,
-      totalPages: 0,
-    },
   });
 };
 
@@ -153,7 +149,8 @@ export const useCreateCategory = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ body }: { body: TCreateCategoryPayload }) => createCategory({ api, data: body }),
+    mutationFn: ({ body }: { body: TCreateCategoryPayload }) =>
+      createCategory({ api, data: body }),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.CATEGORIES.ALL_CATEGORIES],
@@ -170,8 +167,13 @@ export const useUpdateCategory = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ categoryId, body }: { categoryId: string; body: TUpdateCategoryPayload }) =>
-      updateCategory({ api, id: categoryId, data: body }),
+    mutationFn: ({
+      categoryId,
+      body,
+    }: {
+      categoryId: string;
+      body: TUpdateCategoryPayload;
+    }) => updateCategory({ api, id: categoryId, data: body }),
     onSuccess: (_, { categoryId }) => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.CATEGORIES.ALL_CATEGORIES],
@@ -191,7 +193,8 @@ export const useDeleteCategory = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ categoryId }: { categoryId: string }) => deleteCategory({ api, id: categoryId }),
+    mutationFn: ({ categoryId }: { categoryId: string }) =>
+      deleteCategory({ api, id: categoryId }),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEYS.CATEGORIES.ALL_CATEGORIES],
