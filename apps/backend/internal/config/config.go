@@ -20,6 +20,7 @@ type Config struct {
 	Integration   IntegrationConfig    `koanf:"integration" validate:"required"`
 	Observability *ObservabilityConfig `koanf:"observability"`
 	AWS           AWSConfig            `koanf:"aws" validate:"required"`
+	Cron          *CronConfig          `koanf:"cron"`
 }
 
 type Primary struct {
@@ -48,6 +49,7 @@ type DatabaseConfig struct {
 }
 type RedisConfig struct {
 	Address string `koanf:"address" validate:"required"`
+	Password string `koanf:"password"`
 }
 
 type IntegrationConfig struct {
@@ -65,6 +67,25 @@ type AWSConfig struct {
 	UploadBucket    string `koanf:"upload_bucket" validate:"required"`
 	EndpointURL     string `koanf:"endpoint_url"`
 }
+
+type CronConfig struct {
+	ArchiveDaysThreshold        int `koanf:"archive_days_threshold"`
+	BatchSize                   int `koanf:"batch_size"`
+	ReminderHours               int `koanf:"reminder_hours"`
+	MaxTodosPerUserNotification int `koanf:"max_todos_per_user_notification"`
+}
+
+
+func DefaultCronConfig() *CronConfig {
+	return &CronConfig{
+		ArchiveDaysThreshold:        30,
+		BatchSize:                   100,
+		ReminderHours:               24,
+		MaxTodosPerUserNotification: 10,
+	}
+}
+
+
 
 func LoadConfig() (*Config, error) {
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger()
@@ -104,6 +125,10 @@ func LoadConfig() (*Config, error) {
 	// Validate observability config
 	if err := mainConfig.Observability.Validate(); err != nil {
 		logger.Fatal().Err(err).Msg("invalid observability config")
+	}
+
+	if mainConfig.Cron == nil {
+		mainConfig.Cron = DefaultCronConfig()
 	}
 
 	return mainConfig, nil

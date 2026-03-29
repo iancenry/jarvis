@@ -616,6 +616,41 @@ func (r *TodoRepository) GetOverdueTodos(ctx context.Context, limit int) ([]todo
 	
 }
 
+func (r *TodoRepository) GetCompletedTodosOlderThan(ctx context.Context, cutoffDate time.Time, limit int) ([]todo.Todo, error) {
+	stmt := `
+		SELECT
+			*
+		FROM
+			todos
+		WHERE
+			status = 'completed'
+			AND completed_at IS NOT NULL
+			AND completed_at < @cutoff_date
+		ORDER BY
+			completed_at ASC
+		LIMIT
+			@limit
+	`
+
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+		"cutoff_date": cutoffDate,
+		"limit":       limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute get completed todos older than %s query: %w", cutoffDate.Format("2006-01-02"), err)
+	}
+
+	todos, err := pgx.CollectRows(rows, pgx.RowToStructByName[todo.Todo])
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []todo.Todo{}, nil
+		}
+		return nil, fmt.Errorf("failed to collect rows from table:todos: %w", err)
+	}
+
+	return todos, nil
+}
+
 func (r *TodoRepository) ArchiveTodos(ctx context.Context, todoIDs []uuid.UUID) error {
 	stmt := `
 		UPDATE todos
