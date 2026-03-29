@@ -25,7 +25,7 @@ func NewCategoryRepository(s *server.Server) *CategoryRepository {
 
 func (r *CategoryRepository) CreateCategory(ctx context.Context, userID string, payload *category.CreateCategoryPayload) (*category.Category, error) {
 	stmt := `
-		INSERT INTO categories (user_id, name, color, description)
+		INSERT INTO todo_categories (user_id, name, color, description)
 		VALUES (@user_id, @name, @color, @description)
 		RETURNING *
 	`
@@ -51,7 +51,7 @@ func (r *CategoryRepository) CreateCategory(ctx context.Context, userID string, 
 func (r *CategoryRepository) GetCategories(ctx context.Context, userID string, query *category.GetCategoriesQuery) (*model.PaginatedResponse[category.Category], error) {
 	stmt := `
 		SELECT *
-		FROM categories
+		FROM todo_categories
 		WHERE user_id = @user_id
 	`
 
@@ -100,7 +100,7 @@ func (r *CategoryRepository) GetCategories(ctx context.Context, userID string, q
 
 	countStmt := `
 		SELECT COUNT(*)
-		FROM categories
+		FROM todo_categories
 		WHERE user_id = @user_id
 	`
 	if query.Search != nil {
@@ -125,7 +125,7 @@ func (r *CategoryRepository) GetCategories(ctx context.Context, userID string, q
 func (r *CategoryRepository) GetCategoryByID(ctx context.Context, userID string, categoryID uuid.UUID) (*category.Category, error) {
 	stmt := `
 		SELECT *
-		FROM categories
+		FROM todo_categories
 		WHERE user_id = @user_id AND id = @id
 	`
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
@@ -189,7 +189,7 @@ func (r *CategoryRepository) UpdateCategory(ctx context.Context, userID string, 
 
 func (r *CategoryRepository) DeleteCategory(ctx context.Context, userID string, categoryID uuid.UUID) error {
 	stmt := `
-		DELETE FROM categories
+		DELETE FROM todo_categories
 		WHERE user_id = @user_id AND id = @id
 	`
 	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{

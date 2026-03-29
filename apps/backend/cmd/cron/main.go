@@ -11,8 +11,8 @@ import (
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "cron",
-		Short: "Tasker Cron Job Runner",
-		Long:  "Tasker Cron Job Runner - Execute scheduled jobs for the Tasker task management system",
+		Short: "Jarvis Cron Job Runner",
+		Long:  "Jarvis Cron Job Runner - Execute scheduled jobs for the Jarvis task management system",
 	}
 
 	// List command

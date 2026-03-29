@@ -85,7 +85,7 @@ func (r *TodoRepository) CreateTodo(ctx context.Context, userID string, payload 
 
 func (r *TodoRepository) GetTodoByID(ctx context.Context, userID string, todoID uuid.UUID) (*todo.PopulatedTodo, error) {
 	stmt := `
-		SELECT t.*
+		SELECT t.*,
 		CASE
 			WHEN c.id IS NOT NULL THEN jsonb(camel (c))
 			ELSE NULL
@@ -113,12 +113,12 @@ func (r *TodoRepository) GetTodoByID(ctx context.Context, userID string, todoID 
 				FILTER (WHERE att.id IS NOT NULL)
 			),
 			'[]'::jsonb
-		) AS attachments,
+		) AS attachments
 		FROM todos t
 			LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
 			LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
 			LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
-			LEFT JOIN todo_attachments att ON att.todo_id = t.id
+			LEFT JOIN attachments att ON att.todo_id = t.id
 		WHERE t.id = @todo_id AND t.user_id = @user_id
 		GROUP BY t.id, c.id
 	`
@@ -170,7 +170,7 @@ func (r *TodoRepository) CheckTodoExists(ctx context.Context, userID string, tod
 
 func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *todo.GetTodosQuery) (*model.PaginatedResponse[todo.PopulatedTodo], error) {
 	stmt := `
-		SELECT t.*
+		SELECT t.*,
 		CASE
 			WHEN c.id IS NOT NULL THEN jsonb(camel (c))
 			ELSE NULL
@@ -198,12 +198,12 @@ func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *tod
 				FILTER (WHERE att.id IS NOT NULL)
 			),
 			'[]'::jsonb
-		) AS attachments,
+		) AS attachments
 		FROM todos t
 			LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
 			LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
 			LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
-			LEFT JOIN todo_attachments att ON att.todo_id = t.id
+			LEFT JOIN attachments att ON att.todo_id = t.id
 	`
 
 	args := pgx.NamedArgs{
@@ -418,7 +418,7 @@ func (r *TodoRepository) GetTodoStats(ctx context.Context, userID string) (*todo
 	COUNT (CASE WHEN status = 'active' THEN 1 END) AS active,
 	COUNT (CASE WHEN status = 'completed' THEN 1 END) AS completed,
 	COUNT (CASE WHEN status = 'archived' THEN 1 END) AS archived,
-	COUNT (CASE WHEN due_date < NOW() AND status != 'completed' THEN 1 END) AS overdue,
+	COUNT (CASE WHEN due_date < NOW() AND status != 'completed' THEN 1 END) AS overdue
 	FROM todos
 	WHERE user_id = @user_id
 	`
@@ -441,7 +441,7 @@ func (r *TodoRepository) GetTodoStats(ctx context.Context, userID string) (*todo
 
 func (r *TodoRepository) AddAttachment(ctx context.Context, todoID uuid.UUID, userID string, s3Key string, fileName string, fileSize int64, mimeType string) (*attachment.Attachment, error) {
 	stmt := `
-	INSERT INTO todo_attachments (
+	INSERT INTO attachments (
 		todo_id,
 		name,
 		uploaded_by,
@@ -483,7 +483,7 @@ func (r *TodoRepository) AddAttachment(ctx context.Context, todoID uuid.UUID, us
 
 func (r *TodoRepository) GetTodoAttachment(ctx context.Context, todoID uuid.UUID, attachmentID uuid.UUID) (*attachment.Attachment, error) {
 	stmt := `
-	SELECT * FROM todo_attachments
+	SELECT * FROM attachments
 	WHERE id = @id AND todo_id = @todo_id
 	`
 
@@ -510,7 +510,7 @@ func (r *TodoRepository) GetTodoAttachment(ctx context.Context, todoID uuid.UUID
 
 func (r *TodoRepository) GetAttachmentsByTodoID(ctx context.Context, todoID uuid.UUID) ([]attachment.Attachment, error) {
 	stmt := `
-	SELECT * FROM todo_attachments
+	SELECT * FROM attachments
 	WHERE todo_id = @todo_id
 	ORDER BY created_at ASC
 	`
@@ -535,7 +535,7 @@ func (r *TodoRepository) GetAttachmentsByTodoID(ctx context.Context, todoID uuid
 }
 
 func (r *TodoRepository) DeleteAttachment(ctx context.Context, todoID uuid.UUID, attachmentID uuid.UUID) error {
-	stmt := `DELETE FROM todo_attachments WHERE id = @id AND todo_id = @todo_id`
+	stmt := `DELETE FROM attachments WHERE id = @id AND todo_id = @todo_id`
 
 	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
 		"id": attachmentID,
@@ -705,7 +705,7 @@ func (r *TodoRepository) GetWeeklyStatsForUsers(ctx context.Context, startDate, 
 
 func  (r *TodoRepository) GetCompletedTodosForUser(ctx context.Context, userID string, startDate, endDate time.Time) ([]todo.PopulatedTodo, error) {
 	stmt := `
-		SELECT t.*
+		SELECT t.*,
 			CASE
 				WHEN c.id IS NOT NULL THEN to_jsonb(camel (c))
 				ELSE NULL
@@ -728,10 +728,20 @@ func  (r *TodoRepository) GetCompletedTodosForUser(ctx context.Context, userID s
 				) FILTER (WHERE com.id IS NOT NULL),
 				'[]'::jsonb
 			) AS comments,
+			COALESCE(
+				jsonb_agg(
+					CASE
+						WHEN att.id IS NOT NULL THEN to_jsonb(camel (att))
+						ELSE NULL
+					END
+				) FILTER (WHERE att.id IS NOT NULL),
+				'[]'::jsonb
+			) AS attachments
 	FROM todos t
 	LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
 	LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
 	LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
+	LEFT JOIN attachments att ON att.todo_id = t.id
 	WHERE t.user_id = @user_id
 	AND t.status = 'completed'
 	AND t.completed_at >= @start_date
@@ -763,7 +773,7 @@ func  (r *TodoRepository) GetCompletedTodosForUser(ctx context.Context, userID s
 
 func (r *TodoRepository) GetOverdueTodosForUser(ctx context.Context, userID string) ([]todo.PopulatedTodo, error) {
 	stmt := `
-		SELECT t.*
+		SELECT t.*,
 			CASE
 				WHEN c.id IS NOT NULL THEN to_jsonb(camel (c))
 				ELSE NULL
@@ -786,15 +796,27 @@ func (r *TodoRepository) GetOverdueTodosForUser(ctx context.Context, userID stri
 				) FILTER (WHERE com.id IS NOT NULL),
 				'[]'::jsonb
 			) AS comments,
+			COALESCE(
+				jsonb_agg(
+					CASE
+						WHEN att.id IS NOT NULL THEN to_jsonb(camel (att))
+						ELSE NULL
+					END
+				) FILTER (WHERE att.id IS NOT NULL),
+				'[]'::jsonb
+		) AS attachments
 	FROM todos t
 		LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
 		LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
 		LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
+		LEFT JOIN attachments att ON att.todo_id = t.id
+
 	WHERE t.user_id = @user_id
 		AND t.status NOT IN ('completed', 'archived')
 		AND t.due_date < NOW()
 	GROUP BY t.id, c.id
 	ORDER BY t.due_date ASC
+	LIMIT 10
 	`
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"user_id": userID,
