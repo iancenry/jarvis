@@ -1,34 +1,9 @@
-import { type ReactNode, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { useUser } from "@clerk/clerk-react";
-import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/components/ui/form";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  useGetCommentsByTodoId,
+  useAddComment,
+  useUpdateComment,
+  useDeleteComment,
+} from "@/api/hooks/use-comment-query";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,12 +14,34 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  useGetCommentsByTodoId,
-  useAddComment,
-  useUpdateComment,
-  useDeleteComment,
-} from "@/api/hooks/use-comment-query";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+} from "@/components/ui/form";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { useUser } from "@clerk/clerk-react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Send,
   MessageSquare,
@@ -52,10 +49,16 @@ import {
   Edit,
   Trash2,
 } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import * as z from "zod";
 
 const commentSchema = z.object({
-  content: z.string().min(1, "Comment cannot be empty").max(1000, "Comment too long"),
+  content: z
+    .string()
+    .min(1, "Comment cannot be empty")
+    .max(1000, "Comment too long"),
 });
 
 type CommentForm = z.infer<typeof commentSchema>;
@@ -73,11 +76,14 @@ interface Comment {
   updatedAt: string;
 }
 
-export function TodoCommentsDialog({ todoId, children }: TodoCommentsDialogProps) {
+export function TodoCommentsDialog({
+  todoId,
+  children,
+}: TodoCommentsDialogProps) {
   const [open, setOpen] = useState(false);
   const [editingComment, setEditingComment] = useState<string | null>(null);
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
-  
+
   const { user } = useUser();
   const { data: comments, isLoading } = useGetCommentsByTodoId({ todoId });
   const addComment = useAddComment();
@@ -106,7 +112,7 @@ export function TodoCommentsDialog({ todoId, children }: TodoCommentsDialogProps
           content: data.content,
         },
       });
-      
+
       toast.success("Comment added successfully!");
       form.reset();
     } catch {
@@ -116,7 +122,7 @@ export function TodoCommentsDialog({ todoId, children }: TodoCommentsDialogProps
 
   const onEditSubmit = async (data: CommentForm) => {
     if (!editingComment) return;
-    
+
     try {
       await updateComment.mutateAsync({
         commentId: editingComment,
@@ -124,7 +130,7 @@ export function TodoCommentsDialog({ todoId, children }: TodoCommentsDialogProps
           content: data.content,
         },
       });
-      
+
       toast.success("Comment updated successfully!");
       setEditingComment(null);
       editForm.reset();
@@ -156,9 +162,7 @@ export function TodoCommentsDialog({ todoId, children }: TodoCommentsDialogProps
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          {children}
-        </DialogTrigger>
+        <DialogTrigger asChild>{children}</DialogTrigger>
         <DialogContent className="sm:max-w-[600px] h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -166,7 +170,7 @@ export function TodoCommentsDialog({ todoId, children }: TodoCommentsDialogProps
               Comments ({comments?.length || 0})
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="flex-1 flex flex-col min-h-0">
             {/* Comments List */}
             <ScrollArea className="flex-1 pr-4">
@@ -196,25 +200,34 @@ export function TodoCommentsDialog({ todoId, children }: TodoCommentsDialogProps
                             <div className="flex items-center gap-2">
                               <Badge variant="secondary">You</Badge>
                               <span className="text-xs text-muted-foreground">
-                                {comment.createdAt !== comment.updatedAt && "edited • "}
+                                {comment.createdAt !== comment.updatedAt &&
+                                  "edited • "}
                                 {new Date(comment.createdAt).toLocaleString()}
                               </span>
                             </div>
-                            
+
                             {comment.userId === user?.id && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                  >
                                     <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => startEditing(comment)}>
+                                  <DropdownMenuItem
+                                    onClick={() => startEditing(comment)}
+                                  >
                                     <Edit className="h-4 w-4 mr-2" />
                                     Edit
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    onClick={() => setDeleteCommentId(comment.id)}
+                                    onClick={() =>
+                                      setDeleteCommentId(comment.id)
+                                    }
                                     className="text-destructive focus:text-destructive"
                                   >
                                     <Trash2 className="h-4 w-4 mr-2" />
@@ -224,10 +237,13 @@ export function TodoCommentsDialog({ todoId, children }: TodoCommentsDialogProps
                               </DropdownMenu>
                             )}
                           </div>
-                          
+
                           {editingComment === comment.id ? (
                             <Form {...editForm}>
-                              <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-2">
+                              <form
+                                onSubmit={editForm.handleSubmit(onEditSubmit)}
+                                className="space-y-2"
+                              >
                                 <FormField
                                   control={editForm.control}
                                   name="content"
@@ -260,13 +276,17 @@ export function TodoCommentsDialog({ todoId, children }: TodoCommentsDialogProps
                                     size="sm"
                                     disabled={updateComment.isPending}
                                   >
-                                    {updateComment.isPending ? "Updating..." : "Update"}
+                                    {updateComment.isPending
+                                      ? "Updating..."
+                                      : "Update"}
                                   </Button>
                                 </div>
                               </form>
                             </Form>
                           ) : (
-                            <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                            <p className="text-sm whitespace-pre-wrap">
+                              {comment.content}
+                            </p>
                           )}
                         </div>
                       </CardContent>
@@ -285,7 +305,10 @@ export function TodoCommentsDialog({ todoId, children }: TodoCommentsDialogProps
             {/* Add Comment Form */}
             <div className="border-t pt-4 mt-4">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className="space-y-4"
+                >
                   <FormField
                     control={form.control}
                     name="content"
@@ -325,13 +348,16 @@ export function TodoCommentsDialog({ todoId, children }: TodoCommentsDialogProps
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Comment</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this comment? This action cannot be undone.
+              Are you sure you want to delete this comment? This action cannot
+              be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteCommentId && handleDeleteComment(deleteCommentId)}
+              onClick={() =>
+                deleteCommentId && handleDeleteComment(deleteCommentId)
+              }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteComment.isPending}
             >

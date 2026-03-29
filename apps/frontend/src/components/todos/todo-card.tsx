@@ -39,7 +39,9 @@ import {
   AlertTriangle,
   Archive,
   Paperclip,
+  Flame,
 } from "lucide-react";
+import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -50,29 +52,35 @@ interface TodoCardProps {
 
 const priorityConfig = {
   low: {
-    color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+    className: "badge-priority-low",
     label: "Low",
+    icon: null,
   },
   medium: {
-    color:
-      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+    className: "badge-priority-medium",
     label: "Medium",
+    icon: null,
   },
   high: {
-    color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+    className: "badge-priority-high",
     label: "High",
+    icon: Flame,
   },
 };
 
 const statusConfig = {
-  draft: { icon: Circle, color: "text-gray-500", label: "Draft" },
-  active: { icon: Clock, color: "text-blue-500", label: "Active" },
+  draft: { icon: Circle, color: "text-muted-foreground", label: "Draft" },
+  active: { icon: Clock, color: "text-chart-2", label: "Active" },
   completed: {
     icon: CheckCircle2,
-    color: "text-green-500",
+    color: "text-accent",
     label: "Completed",
   },
-  archived: { icon: Archive, color: "text-gray-500", label: "Archived" },
+  archived: {
+    icon: Archive,
+    color: "text-muted-foreground",
+    label: "Archived",
+  },
 };
 
 export function TodoCard({ todo, compact = false }: TodoCardProps) {
@@ -120,10 +128,11 @@ export function TodoCard({ todo, compact = false }: TodoCardProps) {
     <>
       <Card
         className={cn(
-          "transition-all hover:shadow-md",
-          todo.status === "completed" && "opacity-75",
-          compact &&
-            "shadow-none border-0 border-l-2 border-l-transparent hover:border-l-primary",
+          "transition-all duration-300 shadow-soft hover-lift group",
+          todo.status === "completed" && "opacity-80",
+          compact
+            ? "border-l-2 border-l-transparent hover:border-l-accent"
+            : "hover:border-accent/30",
         )}
       >
         <CardContent className={cn("p-4", compact && "p-3")}>
@@ -131,16 +140,18 @@ export function TodoCard({ todo, compact = false }: TodoCardProps) {
             {/* Header with status and actions */}
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3 flex-1 min-w-0">
-                <Checkbox
-                  checked={todo.status === "completed"}
-                  onCheckedChange={handleStatusToggle}
-                  disabled={updateTodo.isPending}
-                  className="mt-0.5"
-                />
+                <motion.div whileTap={{ scale: 0.9 }} className="mt-0.5">
+                  <Checkbox
+                    checked={todo.status === "completed"}
+                    onCheckedChange={handleStatusToggle}
+                    disabled={updateTodo.isPending}
+                    className="data-[state=checked]:bg-accent data-[state=checked]:border-accent"
+                  />
+                </motion.div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <StatusIcon
-                      className={cn("h-4 w-4", statusConfig[todo.status].color)}
+                      className={cn("w-4 h-4", statusConfig[todo.status].color)}
                     />
                     <h3
                       className={cn(
@@ -153,12 +164,12 @@ export function TodoCard({ todo, compact = false }: TodoCardProps) {
                       {todo.title}
                     </h3>
                     {isOverdue && (
-                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                      <AlertTriangle className="w-4 h-4 text-destructive animate-pulse" />
                     )}
                   </div>
 
                   {todo.description && !compact && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                    <p className="text-sm text-muted-foreground line-clamp-2 mb-2 leading-relaxed">
                       {todo.description}
                     </p>
                   )}
@@ -167,21 +178,25 @@ export function TodoCard({ todo, compact = false }: TodoCardProps) {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreHorizontal className="h-4 w-4" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-48">
                   <TodoEditForm todo={todo}>
                     <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                      <Edit className="h-4 w-4 mr-2" />
+                      <Edit className="w-4 h-4 mr-2" />
                       Edit
                     </DropdownMenuItem>
                   </TodoEditForm>
 
                   <TodoCommentsDialog todoId={todo.id}>
                     <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                      <MessageSquare className="h-4 w-4 mr-2" />
+                      <MessageSquare className="w-4 h-4 mr-2" />
                       Comments ({todo.comments?.length || 0})
                     </DropdownMenuItem>
                   </TodoCommentsDialog>
@@ -192,7 +207,7 @@ export function TodoCard({ todo, compact = false }: TodoCardProps) {
                     onSelect={() => setShowDeleteDialog(true)}
                     className="text-destructive focus:text-destructive"
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
+                    <Trash2 className="w-4 h-4 mr-2" />
                     Delete
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -202,57 +217,66 @@ export function TodoCard({ todo, compact = false }: TodoCardProps) {
             {/* Metadata */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 flex-wrap">
-                <Badge
-                  variant="outline"
-                  className={priorityConfig[todo.priority].color}
-                >
-                  {priorityConfig[todo.priority].label}
-                </Badge>
+                {(() => {
+                  const PriorityIcon = priorityConfig[todo.priority].icon;
+                  return (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
+                        priorityConfig[todo.priority].className,
+                      )}
+                    >
+                      {PriorityIcon && <PriorityIcon className="w-3 h-3" />}
+                      {priorityConfig[todo.priority].label}
+                    </span>
+                  );
+                })()}
 
                 {todo.category && (
-                  <Badge
-                    variant="secondary"
-                    className="flex items-center gap-1"
-                  >
-                    <div
-                      className="w-2 h-2 rounded-full"
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground">
+                    <span
+                      className="w-2 h-2 rounded-full shadow-sm"
                       style={{ backgroundColor: todo.category.color }}
                     />
                     {todo.category.name}
-                  </Badge>
+                  </span>
                 )}
 
                 {todo.dueDate && (
-                  <Badge
-                    variant={isOverdue ? "destructive" : "outline"}
-                    className="flex items-center gap-1"
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
+                      isOverdue
+                        ? "bg-destructive/10 text-destructive border border-destructive/20"
+                        : "bg-muted/50 text-muted-foreground",
+                    )}
                   >
-                    <Calendar className="h-3 w-3" />
+                    <Calendar className="w-3 h-3" />
                     {new Date(todo.dueDate).toLocaleDateString()}
-                  </Badge>
+                  </span>
                 )}
 
                 {todo.comments && todo.comments.length > 0 && (
-                  <Badge variant="outline" className="flex items-center gap-1">
-                    <MessageSquare className="h-3 w-3" />
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-muted/30 text-muted-foreground">
+                    <MessageSquare className="w-3 h-3" />
                     {todo.comments.length}
-                  </Badge>
+                  </span>
                 )}
 
                 {todo.attachments && todo.attachments.length > 0 && (
-                  <Badge variant="outline" className="flex items-center gap-1">
-                    <Paperclip className="h-3 w-3" />
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-muted/30 text-muted-foreground">
+                    <Paperclip className="w-3 h-3" />
                     {todo.attachments.length}
-                  </Badge>
+                  </span>
                 )}
               </div>
 
               {!compact && (
-                <div className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground/70">
                   {todo.status === "completed" && todo.completedAt
                     ? `Completed ${new Date(todo.completedAt).toLocaleDateString()}`
                     : `Updated ${new Date(todo.updatedAt).toLocaleDateString()}`}
-                </div>
+                </span>
               )}
             </div>
           </div>

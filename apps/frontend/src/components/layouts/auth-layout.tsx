@@ -1,11 +1,14 @@
-import { Routes, Route } from "react-router-dom";
-import { SignIn, SignUp } from "@clerk/clerk-react";
-import { dark } from "@clerk/themes";
 import { useTheme } from "@/components/theme-provider";
+import { SignIn, SignUp } from "@clerk/tanstack-react-start";
+import { dark } from "@clerk/themes";
+import { Routes, Route } from "react-router-dom";
 
 export function AuthLayout() {
   const { theme } = useTheme();
-  const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const isDark =
+    theme === "dark" ||
+    (theme === "system" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">

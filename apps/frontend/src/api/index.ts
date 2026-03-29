@@ -1,6 +1,6 @@
 import { env } from "@/config/env";
-import { apiContract } from "@jarvis/openapi/contracts";
 import { useAuth } from "@clerk/clerk-react";
+import { apiContract } from "@jarvis/openapi/contracts";
 import { initClient } from "@ts-rest/core";
 import axios, {
   type Method,

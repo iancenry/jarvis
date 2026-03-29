@@ -1,9 +1,8 @@
-import { type ReactNode } from "react";
-import { UserButton } from "@clerk/clerk-react";
-import { Link, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { UserButton } from "@clerk/tanstack-react-start";
 import {
   LayoutDashboard,
   CheckSquare,
@@ -11,11 +10,8 @@ import {
   Settings,
   Menu,
 } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { type ReactNode } from "react";
+import { Link, useLocation } from "react-router-dom";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -36,14 +32,14 @@ export function AppLayout({ children }: AppLayoutProps) {
       {navigation.map((item) => {
         const Icon = item.icon;
         const isActive = location.pathname === item.href;
-        
+
         return (
           <Link key={item.name} to={item.href}>
             <Button
               variant={isActive ? "secondary" : "ghost"}
               className={cn(
                 "w-full justify-start gap-2",
-                isActive && "bg-secondary"
+                isActive && "bg-secondary",
               )}
             >
               <Icon className="h-4 w-4" />
@@ -114,9 +110,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Page Content */}
         <main className="py-6">
-          <div className="px-4 sm:px-6 lg:px-8">
-            {children}
-          </div>
+          <div className="px-4 sm:px-6 lg:px-8">{children}</div>
         </main>
       </div>
     </div>
