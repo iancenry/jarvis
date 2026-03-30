@@ -40,7 +40,7 @@ type Todo struct {
 	model.Base
 	UserID      string   `json:"userId" db:"user_id"`
 	Title       string   `json:"title" db:"title"`
-	Description string   `json:"description" db:"description"`
+	Description *string  `json:"description" db:"description"`
 	Status      Status   `json:"status" db:"status"`
 	Priority    Priority `json:"priority" db:"priority"`
 	DueDate 	*time.Time `json:"dueDate,omitempty" db:"due_date"`

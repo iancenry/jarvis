@@ -124,7 +124,7 @@ func (r *TodoRepository) GetTodoByID(ctx context.Context, userID string, todoID 
 	`
 
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
-		"id": todoID,
+		"todo_id": todoID,
 		"user_id": userID,
 	})
 	if err != nil {
@@ -159,13 +159,13 @@ func (r *TodoRepository) CheckTodoExists(ctx context.Context, userID string, tod
 	todoItem, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[todo.Todo])
 
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("todo not found for user_id=%s id=%s", userID, todoID)
 		}
 		return nil, fmt.Errorf("failed to collect todo exists for user_id=%s id=%s: %w", userID, todoID, err)
 	}
 
-	return &todoItem, nil		
+	return &todoItem, nil
 }
 
 func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *todo.GetTodosQuery) (*model.PaginatedResponse[todo.PopulatedTodo], error) {

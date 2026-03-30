@@ -32,7 +32,7 @@ func SetupTestDB(t *testing.T) (*TestDB, func()) {
 	dbPassword := "testpassword"
 
 	req := testcontainers.ContainerRequest{
-		Image:        "postgres:15-alpine",
+		Image:        "postgres:16-alpine",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_DB":       dbName,

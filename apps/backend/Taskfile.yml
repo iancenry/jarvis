@@ -55,3 +55,8 @@ tasks:
       - go mod tidy
       - echo 'Verifying dependencies...'
       - go mod verify
+  
+  test:
+    desc: run all tests
+    cmds:
+      - go test -v ./...
