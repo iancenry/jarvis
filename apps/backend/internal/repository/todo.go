@@ -550,6 +550,52 @@ func (r *TodoRepository) DeleteAttachment(ctx context.Context, todoID uuid.UUID,
 	return nil
 }
 
+// RestoreAttachment is used to restore attachment metadata when an attachment is deleted and then restored from S3 
+//  since we perform a hard delete on the attachment record in the database when an attachment is deleted, we need to restore the metadata when the attachment is restored from S3
+func (r *TodoRepository) RestoreAttachment(ctx context.Context, item *attachment.Attachment) error {
+	stmt := `
+	INSERT INTO attachments (
+		id,
+		created_at,
+		updated_at,
+		todo_id,
+		name,
+		uploaded_by,
+		download_key,
+		file_size,
+		mime_type
+	)
+	VALUES (
+		@id,
+		@created_at,
+		@updated_at,
+		@todo_id,
+		@name,
+		@uploaded_by,
+		@download_key,
+		@file_size,
+		@mime_type
+	)
+	`
+
+	_, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
+		"id":           item.ID,
+		"created_at":   item.CreatedAt,
+		"updated_at":   item.UpdatedAt,
+		"todo_id":      item.TodoID,
+		"name":         item.Name,
+		"uploaded_by":  item.UploadedBy,
+		"download_key": item.DownloadKey,
+		"file_size":    item.FileSize,
+		"mime_type":    item.MimeType,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to restore attachment metadata for attachment_id=%s todo_id=%s: %w", item.ID, item.TodoID, err)
+	}
+
+	return nil
+}
+
 // CRON
 func (r *TodoRepository) GetTodosDueInHours(ctx context.Context, hours, limit int) ([]todo.Todo, error) {
 	stmt := `
