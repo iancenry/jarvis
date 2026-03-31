@@ -23,15 +23,21 @@ type AuthServiceInterface interface {
 	GetUserEmail(ctx context.Context, userID string) (string, error)
 }
 
-func NewJobService(logger *zerolog.Logger, cfg *config.Config) *JobService {
-	redisAddr := cfg.Redis.Address
+func NewRedisClientOpt(cfg *config.Config) asynq.RedisClientOpt {
+	return asynq.RedisClientOpt{
+		Addr:     cfg.Redis.Address,
+		Password: cfg.Redis.Password,
+		DB:       0,
+	}
+}
 
-	client := asynq.NewClient(asynq.RedisClientOpt{
-		Addr: redisAddr,
-	})
+func NewJobService(logger *zerolog.Logger, cfg *config.Config) *JobService {
+	redisOpt := NewRedisClientOpt(cfg)
+
+	client := asynq.NewClient(redisOpt)
 
 	server := asynq.NewServer(
-		asynq.RedisClientOpt{Addr: redisAddr},
+		redisOpt,
 		asynq.Config{
 			Concurrency: 10,
 			Queues: map[string]int{

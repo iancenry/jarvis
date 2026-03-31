@@ -34,6 +34,17 @@ func TestJobServiceStartRequiresEmailClient(t *testing.T) {
 	assert.Contains(t, err.Error(), "email dependency not configured")
 }
 
+func TestNewRedisClientOptUsesConfiguredPassword(t *testing.T) {
+	cfg := testJobConfig()
+	cfg.Redis.Password = "super-secret"
+
+	redisOpt := NewRedisClientOpt(cfg)
+
+	assert.Equal(t, "localhost:6379", redisOpt.Addr)
+	assert.Equal(t, "super-secret", redisOpt.Password)
+	assert.Equal(t, 0, redisOpt.DB)
+}
+
 func testJobConfig() *config.Config {
 	return &config.Config{
 		Redis: config.RedisConfig{

@@ -3,10 +3,12 @@ package cron
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/iancenry/jarvis/internal/config"
 	"github.com/iancenry/jarvis/internal/database"
+	joblib "github.com/iancenry/jarvis/internal/lib/job"
 	"github.com/iancenry/jarvis/internal/logger"
 	"github.com/iancenry/jarvis/internal/repository"
 	"github.com/iancenry/jarvis/internal/server"
@@ -37,11 +39,22 @@ func NewJobContext() (*JobContext, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
+	if cfg.Redis.Address == "" {
+		return nil, fmt.Errorf("redis address is required for cron jobs")
+	}
+
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Address,
 		Password: cfg.Redis.Password,
 		DB:       0,
 	})
+
+	pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := redisClient.Ping(pingCtx).Err(); err != nil {
+		return nil, fmt.Errorf("failed to connect to redis for cron jobs: %w", err)
+	}
 
 	srv := &server.Server{
 		Config:        cfg,
@@ -84,13 +97,7 @@ func (c *JobContext) Close() {
 
 // initJobClient initializes the Asynq client for enqueuing background jobs
 func initJobClient(cfg *config.Config) (*asynq.Client, error) {
-	redisOpt := asynq.RedisClientOpt{
-		Addr:     cfg.Redis.Address,
-		Password: cfg.Redis.Password,
-		DB:       0,
-	}
-
-	client := asynq.NewClient(redisOpt)
+	client := asynq.NewClient(joblib.NewRedisClientOpt(cfg))
 	return client, nil
 }
 

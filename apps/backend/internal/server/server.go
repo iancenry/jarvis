@@ -32,28 +32,42 @@ func New(cfg *config.Config, logger *zerolog.Logger, loggerService *loggerPkg.Lo
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// Redis client with New Relic integration
-	redisClient := redis.NewClient(&redis.Options{
-		Addr: cfg.Redis.Address,
-	})
+	var redisClient *redis.Client
+	var jobService *job.JobService
 
-	// Add New Relic Redis hooks if available
-	if loggerService != nil && loggerService.GetApplication() != nil {
-		redisClient.AddHook(nrredis.NewHook(redisClient.Options()))
+	if cfg.WorkerEnabled() {
+		if cfg.Redis.Address == "" {
+			return nil, errors.New("redis address is required when the background worker is enabled")
+		}
+
+		// Redis client with New Relic integration
+		redisClient = redis.NewClient(&redis.Options{
+			Addr:     cfg.Redis.Address,
+			Password: cfg.Redis.Password,
+			DB:       0,
+		})
+
+		// Add New Relic Redis hooks if available
+		if loggerService != nil && loggerService.GetApplication() != nil {
+			redisClient.AddHook(nrredis.NewHook(redisClient.Options()))
+		}
+
+		// Test Redis connection and fail fast when the worker depends on it.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := redisClient.Ping(ctx).Err(); err != nil {
+			return nil, fmt.Errorf("failed to connect to Redis for the background worker: %w", err)
+		}
+
+		logger.Info().Str("redis_addr", cfg.Redis.Address).Msg("connected to redis")
+
+		// Initialize the job service here, but defer starting it until its runtime
+		// dependencies have been injected by the service wiring layer.
+		jobService = job.NewJobService(logger, cfg)
+	} else {
+		logger.Info().Msg("background worker disabled; skipping redis initialization")
 	}
-
-	// Test Redis connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := redisClient.Ping(ctx).Err(); err != nil {
-		logger.Error().Err(err).Msg("Failed to connect to Redis, continuing without Redis")
-		// Don't fail startup if Redis is unavailable
-	}
-
-	// Initialize the job service here, but defer starting it until its runtime
-	// dependencies have been injected by the service wiring layer.
-	jobService := job.NewJobService(logger, cfg)
 
 	server := &Server{
 		Config:        cfg,
@@ -98,12 +112,18 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 	}
 
-	if err := s.DB.Close(); err != nil {
-		return fmt.Errorf("failed to close database connection: %w", err)
-	}
-
 	if s.Job != nil {
 		s.Job.Stop()
+	}
+
+	if s.Redis != nil {
+		if err := s.Redis.Close(); err != nil {
+			return fmt.Errorf("failed to close redis connection: %w", err)
+		}
+	}
+
+	if err := s.DB.Close(); err != nil {
+		return fmt.Errorf("failed to close database connection: %w", err)
 	}
 
 	return nil

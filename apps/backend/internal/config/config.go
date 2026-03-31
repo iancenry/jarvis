@@ -16,7 +16,8 @@ type Config struct {
 	Server        ServerConfig         `koanf:"server" validate:"required"`
 	Database      DatabaseConfig       `koanf:"database" validate:"required"`
 	Auth          AuthConfig           `koanf:"auth" validate:"required"`
-	Redis         RedisConfig          `koanf:"redis" validate:"required"`
+	Redis         RedisConfig          `koanf:"redis"`
+	Worker        *WorkerConfig        `koanf:"worker"`
 	Integration   IntegrationConfig    `koanf:"integration" validate:"required"`
 	Observability *ObservabilityConfig `koanf:"observability"`
 	AWS           AWSConfig            `koanf:"aws" validate:"required"`
@@ -48,8 +49,13 @@ type DatabaseConfig struct {
 	ConnMaxIdleTime int    `koanf:"conn_max_idle_time" validate:"required"`
 }
 type RedisConfig struct {
-	Address string `koanf:"address" validate:"required"`
+	Address  string `koanf:"address"`
 	Password string `koanf:"password"`
+}
+
+// WorkerConfig defines the configuration for the background worker
+type WorkerConfig struct {
+	Enabled bool `koanf:"enabled"`
 }
 
 type IntegrationConfig struct {
@@ -75,7 +81,6 @@ type CronConfig struct {
 	MaxTodosPerUserNotification int `koanf:"max_todos_per_user_notification"`
 }
 
-
 func DefaultCronConfig() *CronConfig {
 	return &CronConfig{
 		ArchiveDaysThreshold:        30,
@@ -85,7 +90,19 @@ func DefaultCronConfig() *CronConfig {
 	}
 }
 
+func DefaultWorkerConfig() *WorkerConfig {
+	return &WorkerConfig{
+		Enabled: true,
+	}
+}
 
+func (c *Config) WorkerEnabled() bool {
+	if c == nil || c.Worker == nil {
+		return true
+	}
+
+	return c.Worker.Enabled
+}
 
 func LoadConfig() (*Config, error) {
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger()
@@ -118,6 +135,10 @@ func LoadConfig() (*Config, error) {
 		mainConfig.Observability = DefaultObservabilityConfig()
 	}
 
+	if mainConfig.Worker == nil {
+		mainConfig.Worker = DefaultWorkerConfig()
+	}
+
 	// Override service name and environment from primary config
 	mainConfig.Observability.ServiceName = "jarvis"
 	mainConfig.Observability.Environment = mainConfig.Primary.Env
@@ -129,6 +150,12 @@ func LoadConfig() (*Config, error) {
 
 	if mainConfig.Cron == nil {
 		mainConfig.Cron = DefaultCronConfig()
+	}
+
+	if mainConfig.WorkerEnabled() && mainConfig.Redis.Address == "" {
+		logger.Fatal().
+			Bool("worker_enabled", true).
+			Msg("redis.address is required when the background worker is enabled")
 	}
 
 	return mainConfig, nil
