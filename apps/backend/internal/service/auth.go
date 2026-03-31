@@ -4,21 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/iancenry/jarvis/internal/server"
-
 	"github.com/clerk/clerk-sdk-go/v2"
 	clerkUser "github.com/clerk/clerk-sdk-go/v2/user"
 )
 
-type AuthService struct {
-	server *server.Server
-}
+type AuthService struct{}
 
-func NewAuthService(s *server.Server) *AuthService {
-	clerk.SetKey(s.Config.Auth.SecretKey)
-	return &AuthService{
-		server: s,
-	}
+func NewAuthService(secretKey string) *AuthService {
+	clerk.SetKey(secretKey)
+	return &AuthService{}
 }
 
 func (s *AuthService) GetUserEmail(ctx context.Context, userID string) (string, error) {

@@ -1,18 +1,18 @@
 package repository
 
-import "github.com/iancenry/jarvis/internal/server"
+import "github.com/iancenry/jarvis/internal/database"
 
 // Repositories aggregates all individual repositories for easy access
-type Repositories struct{
-	Todo *TodoRepository
-	Comment *CommentRepository
+type Repositories struct {
+	Todo     *TodoRepository
+	Comment  *CommentRepository
 	Category *CategoryRepository
 }
 
-func NewRepositories(s *server.Server) *Repositories {
+func NewRepositories(db *database.Database) *Repositories {
 	return &Repositories{
-		Todo: NewTodoRepository(s),
-		Comment: NewCommentRepository(s),
-		Category: NewCategoryRepository(s),
+		Todo:     NewTodoRepository(db),
+		Comment:  NewCommentRepository(db),
+		Category: NewCategoryRepository(db),
 	}
 }

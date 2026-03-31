@@ -6,19 +6,19 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/iancenry/jarvis/internal/database"
 	"github.com/iancenry/jarvis/internal/model"
 	"github.com/iancenry/jarvis/internal/model/category"
-	"github.com/iancenry/jarvis/internal/server"
 	"github.com/jackc/pgx/v5"
 )
 
 type CategoryRepository struct {
-	server *server.Server
+	db *database.Database
 }
 
-func NewCategoryRepository(s *server.Server) *CategoryRepository {
+func NewCategoryRepository(db *database.Database) *CategoryRepository {
 	return &CategoryRepository{
-		server: s,
+		db: db,
 	}
 }
 
@@ -28,7 +28,7 @@ func (r *CategoryRepository) CreateCategory(ctx context.Context, userID string, 
 		VALUES (@user_id, @name, @color, @description)
 		RETURNING *
 	`
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"user_id":     userID,
 		"name":        payload.Name,
 		"color":       payload.Color,
@@ -83,7 +83,7 @@ func (r *CategoryRepository) GetCategories(ctx context.Context, userID string, q
 	args["limit"] = *query.Limit
 	args["offset"] = (*query.Page - 1) * *query.Limit
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, args)
+	rows, err := r.db.Pool.Query(ctx, stmt, args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute get categories query for user_id=%s: %w", userID, err)
 	}
@@ -102,7 +102,7 @@ func (r *CategoryRepository) GetCategories(ctx context.Context, userID string, q
 		countStmt += " AND name ILIKE '%' || @search || '%'"
 	}
 	var total int
-	err = r.server.DB.Pool.QueryRow(ctx, countStmt, args).Scan(&total)
+	err = r.db.Pool.QueryRow(ctx, countStmt, args).Scan(&total)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute count categories query for user_id=%s: %w", userID, err)
 	}
@@ -123,7 +123,7 @@ func (r *CategoryRepository) GetCategoryByID(ctx context.Context, userID string,
 		FROM todo_categories
 		WHERE user_id = @user_id AND id = @id
 	`
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"user_id": userID,
 		"id":      categoryID,
 	})
@@ -181,7 +181,7 @@ func (r *CategoryRepository) UpdateCategory(ctx context.Context, userID string, 
 	stmt += strings.Join(setClauses, ", ")
 	stmt += " WHERE user_id = @user_id AND id = @id RETURNING *"
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, args)
+	rows, err := r.db.Pool.Query(ctx, stmt, args)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, newDomainConflictError("CATEGORY", "category with this name already exists")
@@ -209,7 +209,7 @@ func (r *CategoryRepository) DeleteCategory(ctx context.Context, userID string, 
 		WHERE user_id = @user_id AND id = @id
 		RETURNING *
 	`
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"user_id": userID,
 		"id":      categoryID,
 	})

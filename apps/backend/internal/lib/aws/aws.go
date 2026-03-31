@@ -6,18 +6,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/iancenry/jarvis/internal/server"
+	appconfig "github.com/iancenry/jarvis/internal/config"
 )
-
 
 type AWS struct {
 	S3 *S3Client
 }
 
-
-func NewAWS(server *server.Server) (*AWS, error) {
-	awsConfig := server.Config.AWS
-
+func NewAWS(awsConfig appconfig.AWSConfig) (*AWS, error) {
 	configOptions := []func(*config.LoadOptions) error{
 		config.WithRegion(awsConfig.Region),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
@@ -47,6 +43,6 @@ func NewAWS(server *server.Server) (*AWS, error) {
 	}
 
 	return &AWS{
-		S3: NewS3Client(server, cfg),
+		S3: NewS3Client(cfg),
 	}, nil
 }

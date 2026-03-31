@@ -16,7 +16,6 @@ import (
 	"github.com/iancenry/jarvis/internal/model/attachment"
 	"github.com/iancenry/jarvis/internal/model/todo"
 	"github.com/iancenry/jarvis/internal/repository"
-	"github.com/iancenry/jarvis/internal/server"
 	"github.com/rs/zerolog"
 )
 
@@ -38,25 +37,25 @@ type attachmentFileStore interface {
 }
 
 type TodoService struct {
-	server         *server.Server
 	todoRepo       *repository.TodoRepository
 	attachmentRepo todoAttachmentRepository
 	categoryRepo   *repository.CategoryRepository
 	fileStore      attachmentFileStore
+	uploadBucket   string
 }
 
-func NewTodoService(s *server.Server, todoRepo *repository.TodoRepository, categoryRepo *repository.CategoryRepository, awsClient *aws.AWS) *TodoService {
+func NewTodoService(todoRepo *repository.TodoRepository, categoryRepo *repository.CategoryRepository, awsClient *aws.AWS, uploadBucket string) *TodoService {
 	var fileStore attachmentFileStore
 	if awsClient != nil {
 		fileStore = awsClient.S3
 	}
 
 	return &TodoService{
-		server:         s,
 		todoRepo:       todoRepo,
 		attachmentRepo: todoRepo,
 		categoryRepo:   categoryRepo,
 		fileStore:      fileStore,
+		uploadBucket:   uploadBucket,
 	}
 }
 
@@ -271,7 +270,7 @@ func (ts *TodoService) UploadTodoAttachment(ctx context.Context, userID string, 
 	storageKey := buildAttachmentStorageKey(sanitizedFileName)
 	s3Key, err := ts.fileStore.UploadFile(
 		ctx,
-		ts.server.Config.AWS.UploadBucket,
+		ts.uploadBucket,
 		storageKey,
 		uploadReader,
 		file.Size,
@@ -375,7 +374,7 @@ func (s *TodoService) GetAttachmentPresignedURL(ctx context.Context, userID stri
 		return "", err
 	}
 
-	presignedURL, err := s.fileStore.CreatePresignedURL(ctx, s.server.Config.AWS.UploadBucket, attachmentItem.DownloadKey)
+	presignedURL, err := s.fileStore.CreatePresignedURL(ctx, s.uploadBucket, attachmentItem.DownloadKey)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to generate presigned URL")
 		return "", err
@@ -412,7 +411,7 @@ func (ts *TodoService) deleteAttachmentFile(s3Key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), attachmentCompensationTimeout)
 	defer cancel()
 
-	return ts.fileStore.DeleteFile(ctx, ts.server.Config.AWS.UploadBucket, s3Key)
+	return ts.fileStore.DeleteFile(ctx, ts.uploadBucket, s3Key)
 }
 
 func (ts *TodoService) restoreAttachmentMetadata(item *attachment.Attachment) error {

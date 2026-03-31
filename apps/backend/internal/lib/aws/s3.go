@@ -8,17 +8,14 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/iancenry/jarvis/internal/server"
 )
 
 type S3Client struct {
-	server *server.Server
 	client *s3.Client
 }
 
-func NewS3Client(server *server.Server, cfg aws.Config) *S3Client {
+func NewS3Client(cfg aws.Config) *S3Client {
 	return &S3Client{
-		server: server,
 		client: s3.NewFromConfig(cfg),
 	}
 }

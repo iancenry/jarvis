@@ -16,8 +16,8 @@ func TestCommentRepository_DomainErrors(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
-	commentRepo := repository.NewCommentRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
+	commentRepo := repository.NewCommentRepository(testServer.DB)
 	userID := uuid.New().String()
 	testTodo := createTestTodo(t, ctx, todoRepo, userID)
 
@@ -82,8 +82,8 @@ func TestCommentRepository_DeleteComment(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
-	commentRepo := repository.NewCommentRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
+	commentRepo := repository.NewCommentRepository(testServer.DB)
 	userID := uuid.New().String()
 	testTodo := createTestTodo(t, ctx, todoRepo, userID)
 

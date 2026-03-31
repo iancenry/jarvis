@@ -45,7 +45,7 @@ func main() {
 	}
 
 	// Initialize repositories, services, and handlers
-	repos := repository.NewRepositories(srv)
+	repos := repository.NewRepositories(srv.DB)
 	services, serviceErr := service.NewServices(srv, repos)
 	if serviceErr != nil {
 		log.Fatal().Err(serviceErr).Msg("could not create services")

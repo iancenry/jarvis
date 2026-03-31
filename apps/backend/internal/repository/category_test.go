@@ -18,7 +18,7 @@ func TestCategoryRepository_UpdateCategory(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	categoryRepo := repository.NewCategoryRepository(testServer)
+	categoryRepo := repository.NewCategoryRepository(testServer.DB)
 	userID := uuid.New().String()
 
 	categoryItem, err := categoryRepo.CreateCategory(ctx, userID, &category.CreateCategoryPayload{
@@ -58,7 +58,7 @@ func TestCategoryRepository_DomainErrors(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	categoryRepo := repository.NewCategoryRepository(testServer)
+	categoryRepo := repository.NewCategoryRepository(testServer.DB)
 	userID := uuid.New().String()
 
 	t.Run("create duplicate category name returns conflict", func(t *testing.T) {
@@ -125,7 +125,7 @@ func TestCategoryRepository_DeleteCategory(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	categoryRepo := repository.NewCategoryRepository(testServer)
+	categoryRepo := repository.NewCategoryRepository(testServer.DB)
 	userID := uuid.New().String()
 
 	categoryItem, err := categoryRepo.CreateCategory(ctx, userID, &category.CreateCategoryPayload{

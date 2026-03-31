@@ -8,17 +8,14 @@ import (
 	"github.com/iancenry/jarvis/internal/model"
 	"github.com/iancenry/jarvis/internal/model/category"
 	"github.com/iancenry/jarvis/internal/repository"
-	"github.com/iancenry/jarvis/internal/server"
 )
 
 type CategoryService struct {
-	server       *server.Server
 	categoryRepo *repository.CategoryRepository
 }
 
-func NewCategoryService(s *server.Server, categoryRepo *repository.CategoryRepository) *CategoryService {
+func NewCategoryService(categoryRepo *repository.CategoryRepository) *CategoryService {
 	return &CategoryService{
-		server:       s,
 		categoryRepo: categoryRepo,
 	}
 }

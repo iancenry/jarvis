@@ -5,18 +5,18 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/iancenry/jarvis/internal/database"
 	"github.com/iancenry/jarvis/internal/model/comment"
-	"github.com/iancenry/jarvis/internal/server"
 	"github.com/jackc/pgx/v5"
 )
 
 type CommentRepository struct {
-	server *server.Server
+	db *database.Database
 }
 
-func NewCommentRepository(s *server.Server) *CommentRepository {
+func NewCommentRepository(db *database.Database) *CommentRepository {
 	return &CommentRepository{
-		server: s,
+		db: db,
 	}
 }
 
@@ -28,7 +28,7 @@ func (r *CommentRepository) CreateComment(ctx context.Context, userID string, to
 		WHERE t.id = @todo_id AND t.user_id = @user_id
 		RETURNING *
 		`
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"todo_id": todoID,
 		"user_id": userID,
 		"content": payload.Content,
@@ -54,7 +54,7 @@ func (r *CommentRepository) GetCommentsByTodoID(ctx context.Context, userID stri
 		WHERE todo_id = @todo_id AND user_id = @user_id
 		ORDER BY created_at ASC
 	`
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"todo_id": todoID,
 		"user_id": userID,
 	})
@@ -76,7 +76,7 @@ func (r *CommentRepository) GetCommentByID(ctx context.Context, userID string, c
 		SELECT * FROM todo_comments
 		WHERE id = @id AND user_id = @user_id
 	`
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"id":      commentID,
 		"user_id": userID,
 	})
@@ -105,7 +105,7 @@ func (r *CommentRepository) UpdateComment(ctx context.Context, userID string, pa
 		RETURNING *
 	`
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"id":      payload.ID,
 		"user_id": userID,
 		"content": payload.Content,
@@ -132,7 +132,7 @@ func (r *CommentRepository) DeleteComment(ctx context.Context, userID string, co
 		WHERE id = @id AND user_id = @user_id
 		RETURNING *
 	`
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"id":      commentID,
 		"user_id": userID,
 	})

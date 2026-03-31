@@ -13,13 +13,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iancenry/jarvis/internal/config"
 	"github.com/iancenry/jarvis/internal/errs"
 	"github.com/iancenry/jarvis/internal/middleware"
 	"github.com/iancenry/jarvis/internal/model"
 	"github.com/iancenry/jarvis/internal/model/attachment"
 	"github.com/iancenry/jarvis/internal/model/todo"
-	"github.com/iancenry/jarvis/internal/server"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -344,15 +342,9 @@ func TestDeleteTodoAttachmentReturnsJoinedErrorWhenRestoreFails(t *testing.T) {
 
 func newTestTodoService(repo todoAttachmentRepository, store attachmentFileStore) *TodoService {
 	return &TodoService{
-		server: &server.Server{
-			Config: &config.Config{
-				AWS: config.AWSConfig{
-					UploadBucket: "attachments-bucket",
-				},
-			},
-		},
 		attachmentRepo: repo,
 		fileStore:      store,
+		uploadBucket:   "attachments-bucket",
 	}
 }
 

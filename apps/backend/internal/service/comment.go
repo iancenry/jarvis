@@ -7,18 +7,15 @@ import (
 	"github.com/iancenry/jarvis/internal/middleware"
 	"github.com/iancenry/jarvis/internal/model/comment"
 	"github.com/iancenry/jarvis/internal/repository"
-	"github.com/iancenry/jarvis/internal/server"
 )
 
 type CommentService struct {
-	server      *server.Server
 	commentRepo *repository.CommentRepository
 	todoRepo    *repository.TodoRepository
 }
 
-func NewCommentService(s *server.Server, commentRepo *repository.CommentRepository, todoRepo *repository.TodoRepository) *CommentService {
+func NewCommentService(commentRepo *repository.CommentRepository, todoRepo *repository.TodoRepository) *CommentService {
 	return &CommentService{
-		server:      s,
 		commentRepo: commentRepo,
 		todoRepo:    todoRepo,
 	}

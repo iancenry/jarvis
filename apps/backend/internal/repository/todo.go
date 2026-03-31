@@ -8,17 +8,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iancenry/jarvis/internal/database"
 	"github.com/iancenry/jarvis/internal/model"
 	"github.com/iancenry/jarvis/internal/model/attachment"
 	"github.com/iancenry/jarvis/internal/model/todo"
-	"github.com/iancenry/jarvis/internal/server"
 	"github.com/jackc/pgx/v5"
 )
 
 // TodoRepository provides methods to interact with the todo data store
-// embedding the server struct allows us to access shared resources like the database connection pool
 type TodoRepository struct {
-	server *server.Server
+	db *database.Database
 }
 
 // todoSortColumns maps allowed sort fields from the API to their corresponding database columns to prevent SQL injection through the sort parameter
@@ -69,10 +68,10 @@ const populatedTodoJoins = `
 		) attachment_agg ON TRUE
 `
 
-// NewTodoRepository creates a new instance of TodoRepository with the provided server dependency
-func NewTodoRepository(server *server.Server) *TodoRepository {
+// NewTodoRepository creates a new instance of TodoRepository with the provided database dependency.
+func NewTodoRepository(db *database.Database) *TodoRepository {
 	return &TodoRepository{
-		server: server,
+		db: db,
 	}
 }
 
@@ -106,7 +105,7 @@ func (r *TodoRepository) CreateTodo(ctx context.Context, userID string, payload 
 		priority = *payload.Priority
 	}
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"user_id":        userID,
 		"title":          payload.Title,
 		"description":    payload.Description,
@@ -134,7 +133,7 @@ func (r *TodoRepository) GetTodoByID(ctx context.Context, userID string, todoID 
 		WHERE t.id = @todo_id AND t.user_id = @user_id
 	`
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"todo_id": todoID,
 		"user_id": userID,
 	})
@@ -161,7 +160,7 @@ func (r *TodoRepository) CheckTodoExists(ctx context.Context, userID string, tod
 		WHERE id = @id AND user_id = @user_id
 	`
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"id":      todoID,
 		"user_id": userID,
 	})
@@ -248,7 +247,7 @@ func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *tod
 	}
 
 	var totalCount int
-	err := r.server.DB.Pool.QueryRow(ctx, countStmt, args).Scan(&totalCount)
+	err := r.db.Pool.QueryRow(ctx, countStmt, args).Scan(&totalCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute count todos query for user_id=%s: %w", userID, err)
 	}
@@ -271,7 +270,7 @@ func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *tod
 	args["limit"] = *query.Limit
 	args["offset"] = (*query.Page - 1) * (*query.Limit)
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, args)
+	rows, err := r.db.Pool.Query(ctx, stmt, args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute get todos query for user_id=%s: %w", userID, err)
 	}
@@ -383,7 +382,7 @@ func (r *TodoRepository) UpdateTodo(ctx context.Context, userID string, payload 
 	stmt += strings.Join(setClauses, ", ")
 	stmt += " WHERE id = @id AND user_id = @user_id RETURNING *"
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, args)
+	rows, err := r.db.Pool.Query(ctx, stmt, args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute update todo query for user_id=%s todo_id=%s: %w", userID, payload.ID, err)
 	}
@@ -403,7 +402,7 @@ func (r *TodoRepository) UpdateTodo(ctx context.Context, userID string, payload 
 func (r *TodoRepository) DeleteTodo(ctx context.Context, userID string, todoID uuid.UUID) (*todo.Todo, error) {
 	stmt := `DELETE FROM todos WHERE id = @id AND user_id = @user_id RETURNING *`
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"id":      todoID,
 		"user_id": userID,
 	})
@@ -434,7 +433,7 @@ func (r *TodoRepository) GetTodoStats(ctx context.Context, userID string) (*todo
 	WHERE user_id = @user_id
 	`
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"user_id": userID,
 	})
 	if err != nil {
@@ -471,7 +470,7 @@ func (r *TodoRepository) AddAttachment(ctx context.Context, todoID uuid.UUID, us
 	RETURNING *
 	`
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"todo_id":      todoID,
 		"name":         fileName,
 		"uploaded_by":  userID,
@@ -498,7 +497,7 @@ func (r *TodoRepository) GetTodoAttachment(ctx context.Context, todoID uuid.UUID
 	WHERE id = @id AND todo_id = @todo_id
 	`
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"id":      attachmentID,
 		"todo_id": todoID,
 	})
@@ -525,7 +524,7 @@ func (r *TodoRepository) GetAttachmentsByTodoID(ctx context.Context, todoID uuid
 	ORDER BY created_at ASC
 	`
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"todo_id": todoID,
 	})
 	if err != nil {
@@ -547,7 +546,7 @@ func (r *TodoRepository) GetAttachmentsByTodoID(ctx context.Context, todoID uuid
 func (r *TodoRepository) DeleteAttachment(ctx context.Context, todoID uuid.UUID, attachmentID uuid.UUID) error {
 	stmt := `DELETE FROM attachments WHERE id = @id AND todo_id = @todo_id`
 
-	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
+	result, err := r.db.Pool.Exec(ctx, stmt, pgx.NamedArgs{
 		"id":      attachmentID,
 		"todo_id": todoID,
 	})
@@ -591,7 +590,7 @@ func (r *TodoRepository) RestoreAttachment(ctx context.Context, item *attachment
 	)
 	`
 
-	_, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
+	_, err := r.db.Pool.Exec(ctx, stmt, pgx.NamedArgs{
 		"id":           item.ID,
 		"created_at":   item.CreatedAt,
 		"updated_at":   item.UpdatedAt,
@@ -621,7 +620,7 @@ func (r *TodoRepository) GetTodosDueInHours(ctx context.Context, hours, limit in
 		limit @limit
 	`
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"hours": hours,
 		"limit": limit,
 	})
@@ -652,7 +651,7 @@ func (r *TodoRepository) GetOverdueTodos(ctx context.Context, limit int) ([]todo
 		limit @limit
 	`
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"limit": limit,
 	})
 	if err != nil {
@@ -688,7 +687,7 @@ func (r *TodoRepository) GetCompletedTodosOlderThan(ctx context.Context, cutoffD
 			@limit
 	`
 
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"cutoff_date": cutoffDate,
 		"limit":       limit,
 	})
@@ -714,7 +713,7 @@ func (r *TodoRepository) ArchiveTodos(ctx context.Context, todoIDs []uuid.UUID) 
 		WHERE id = ANY(@ids) AND status != 'archived'
 	`
 
-	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
+	result, err := r.db.Pool.Exec(ctx, stmt, pgx.NamedArgs{
 		"ids": todoIDs,
 	})
 	if err != nil {
@@ -739,7 +738,7 @@ func (r *TodoRepository) GetWeeklyStatsForUsers(ctx context.Context, startDate, 
 	GROUP BY user_id
 	HAVING COUNT (*) > 0
 	`
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"start_date": startDate,
 		"end_date":   endDate,
 	})
@@ -768,7 +767,7 @@ func (r *TodoRepository) GetCompletedTodosForUser(ctx context.Context, userID st
 	ORDER BY t.completed_at DESC
 	LIMIT 10
 	`
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"user_id":    userID,
 		"start_date": startDate,
 		"end_date":   endDate,
@@ -797,7 +796,7 @@ func (r *TodoRepository) GetOverdueTodosForUser(ctx context.Context, userID stri
 	ORDER BY t.due_date ASC
 	LIMIT 10
 	`
-	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.db.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"user_id": userID,
 	})
 	if err != nil {

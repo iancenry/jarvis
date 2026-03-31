@@ -24,7 +24,7 @@ func TestTodoRepository_CreateTodo(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
 
 	t.Run("create todo successfully", func(t *testing.T) {
 		userID := uuid.New().String()
@@ -106,7 +106,7 @@ func TestTodoRepository_GetTodoByID(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
 
 	// Create test todo
 	userID := uuid.New().String()
@@ -125,7 +125,7 @@ func TestTodoRepository_GetTodoByID(t *testing.T) {
 	})
 
 	t.Run("does not duplicate nested relations", func(t *testing.T) {
-		commentRepo := repository.NewCommentRepository(testServer)
+		commentRepo := repository.NewCommentRepository(testServer.DB)
 		fixture := createPopulatedTodoFixture(t, ctx, todoRepo, commentRepo, userID, "Nested GetTodoByID", time.Now().Add(6*time.Hour))
 
 		result, err := todoRepo.GetTodoByID(ctx, userID, fixture.Parent.ID)
@@ -168,7 +168,7 @@ func TestTodoRepository_CheckTodoExists(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
 
 	// Create test todo
 	userID := uuid.New().String()
@@ -207,7 +207,7 @@ func TestTodoRepository_GetTodos(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
 
 	// Create test todos
 	userID := uuid.New().String()
@@ -329,7 +329,7 @@ func TestTodoRepository_GetTodos(t *testing.T) {
 	})
 
 	t.Run("does not duplicate nested relations", func(t *testing.T) {
-		commentRepo := repository.NewCommentRepository(testServer)
+		commentRepo := repository.NewCommentRepository(testServer.DB)
 		nestedUserID := uuid.New().String()
 		fixture := createPopulatedTodoFixture(t, ctx, todoRepo, commentRepo, nestedUserID, "Nested GetTodos", time.Now().Add(8*time.Hour))
 
@@ -370,7 +370,7 @@ func TestTodoRepository_UpdateTodo(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
 
 	// Create test todo
 	userID := uuid.New().String()
@@ -465,7 +465,7 @@ func TestTodoRepository_UpdateTodo(t *testing.T) {
 	})
 
 	t.Run("clear nullable fields with explicit null", func(t *testing.T) {
-		categoryRepo := repository.NewCategoryRepository(testServer)
+		categoryRepo := repository.NewCategoryRepository(testServer.DB)
 
 		categoryItem, err := categoryRepo.CreateCategory(ctx, userID, &category.CreateCategoryPayload{
 			Name:        "Work",
@@ -525,7 +525,7 @@ func TestTodoRepository_DeleteTodo(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
 
 	// Create test todo
 	userID := uuid.New().String()
@@ -569,7 +569,7 @@ func TestTodoRepository_GetTodoStats(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
 
 	// Create test todos with different statuses
 	userID := uuid.New().String()
@@ -603,7 +603,7 @@ func TestTodoRepository_GetTodosDueInHours(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
 	userID := uuid.New().String()
 
 	dueSoon := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Due Soon", time.Now().Add(1*time.Hour))
@@ -632,7 +632,7 @@ func TestTodoRepository_GetOverdueTodos(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
 	userID := uuid.New().String()
 
 	oldestOverdue := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Oldest Overdue", time.Now().Add(-4*time.Hour))
@@ -660,7 +660,7 @@ func TestTodoRepository_AutoArchiveQueries(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
 	userID := uuid.New().String()
 
 	oldCompletedA := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Old Completed A", time.Now().Add(-48*time.Hour))
@@ -731,8 +731,8 @@ func TestTodoRepository_ReportQueriesDoNotDuplicateNestedRelations(t *testing.T)
 	defer cleanup()
 
 	ctx := context.Background()
-	todoRepo := repository.NewTodoRepository(testServer)
-	commentRepo := repository.NewCommentRepository(testServer)
+	todoRepo := repository.NewTodoRepository(testServer.DB)
+	commentRepo := repository.NewCommentRepository(testServer.DB)
 	userID := uuid.New().String()
 
 	completedFixture := createPopulatedTodoFixture(t, ctx, todoRepo, commentRepo, userID, "Completed Report", time.Now().Add(-4*time.Hour))

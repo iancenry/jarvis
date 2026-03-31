@@ -18,15 +18,15 @@ type Services struct {
 }
 
 func NewServices(s *server.Server, repos *repository.Repositories) (*Services, error) {
-	awsClient, err := aws.NewAWS(s)
+	awsClient, err := aws.NewAWS(s.Config.AWS)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AWS client: %w", err)
 	}
 
-	authService := NewAuthService(s)
-	todoService := NewTodoService(s, repos.Todo, repos.Category, awsClient)
-	commentService := NewCommentService(s, repos.Comment, repos.Todo)
-	categoryService := NewCategoryService(s, repos.Category)
+	authService := NewAuthService(s.Config.Auth.SecretKey)
+	todoService := NewTodoService(repos.Todo, repos.Category, awsClient, s.Config.AWS.UploadBucket)
+	commentService := NewCommentService(repos.Comment, repos.Todo)
+	categoryService := NewCategoryService(repos.Category)
 
 	// Inject AuthService into JobService for email tasks that require user information
 	if s.Job != nil {

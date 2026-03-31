@@ -69,7 +69,7 @@ func NewJobContext() (*JobContext, error) {
 		return nil, fmt.Errorf("failed to initialize job client: %w", err)
 	}
 
-	repositories := repository.NewRepositories(srv)
+	repositories := repository.NewRepositories(srv.DB)
 
 	return &JobContext{
 		Config:        cfg,
