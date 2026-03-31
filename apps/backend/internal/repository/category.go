@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -37,11 +36,17 @@ func (r *CategoryRepository) CreateCategory(ctx context.Context, userID string, 
 	})
 
 	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, newDomainConflictError("CATEGORY", "category with this name already exists")
+		}
 		return nil, fmt.Errorf("failed to execute create category query for user_id=%s: %w", userID, err)
 	}
 
 	category, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[category.Category])
 	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, newDomainConflictError("CATEGORY", "category with this name already exists")
+		}
 		return nil, fmt.Errorf("failed to collect created category for user_id=%s: %w", userID, err)
 	}
 
@@ -85,16 +90,6 @@ func (r *CategoryRepository) GetCategories(ctx context.Context, userID string, q
 
 	categories, err := pgx.CollectRows(rows, pgx.RowToStructByName[category.Category])
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return &model.PaginatedResponse[category.Category]{
-				Data:       []category.Category{},
-				Page:       *query.Page,
-				Limit:      *query.Limit,
-				Total:      0,
-				TotalPages: 0,
-			}, nil
-		}
-
 		return nil, fmt.Errorf("failed to collect categories for user_id=%s: %w", userID, err)
 	}
 
@@ -138,6 +133,9 @@ func (r *CategoryRepository) GetCategoryByID(ctx context.Context, userID string,
 
 	category, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[category.Category])
 	if err != nil {
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("CATEGORY")
+		}
 		return nil, fmt.Errorf("failed to collect category by ID for user_id=%s and category_id=%s: %w", userID, categoryID, err)
 	}
 
@@ -185,11 +183,20 @@ func (r *CategoryRepository) UpdateCategory(ctx context.Context, userID string, 
 
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, args)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, newDomainConflictError("CATEGORY", "category with this name already exists")
+		}
 		return nil, fmt.Errorf("failed to execute update category query for user_id=%s and category_id=%s: %w", userID, categoryID, err)
 	}
 
 	updatedCategory, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[category.Category])
 	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, newDomainConflictError("CATEGORY", "category with this name already exists")
+		}
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("CATEGORY")
+		}
 		return nil, fmt.Errorf("failed to collect updated category for user_id=%s and category_id=%s: %w", userID, categoryID, err)
 	}
 
@@ -210,7 +217,7 @@ func (r *CategoryRepository) DeleteCategory(ctx context.Context, userID string, 
 	}
 
 	if result.RowsAffected() == 0 {
-		return fmt.Errorf("no category found to delete for user_id=%s and category_id=%s", userID, categoryID)
+		return newDomainNotFoundError("CATEGORY")
 	}
 
 	return nil

@@ -27,8 +27,8 @@ func (r *CommentRepository) CreateComment(ctx context.Context, userID string, to
 		RETURNING *
 		`
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
-		"todo_id" :   todoID,
-		"user_id" : userID,
+		"todo_id": todoID,
+		"user_id": userID,
 		"content": payload.Content,
 	})
 
@@ -72,7 +72,7 @@ func (r *CommentRepository) GetCommentByID(ctx context.Context, userID string, c
 		WHERE id = @id AND user_id = @user_id
 	`
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
-		"id": commentID,
+		"id":      commentID,
 		"user_id": userID,
 	})
 
@@ -82,6 +82,9 @@ func (r *CommentRepository) GetCommentByID(ctx context.Context, userID string, c
 
 	comment, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[comment.Comment])
 	if err != nil {
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("COMMENT")
+		}
 		return nil, fmt.Errorf("failed to collect comment by id for user_id=%s comment_id=%s: %w", userID, commentID, err)
 	}
 
@@ -98,7 +101,7 @@ func (r *CommentRepository) UpdateComment(ctx context.Context, userID string, pa
 	`
 
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
-		"id": payload.ID,
+		"id":      payload.ID,
 		"user_id": userID,
 		"content": payload.Content,
 	})
@@ -109,6 +112,9 @@ func (r *CommentRepository) UpdateComment(ctx context.Context, userID string, pa
 
 	updatedComment, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[comment.Comment])
 	if err != nil {
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("COMMENT")
+		}
 		return nil, fmt.Errorf("failed to collect updated comment for user_id=%s comment_id=%s: %w", userID, payload.ID, err)
 	}
 
@@ -121,7 +127,7 @@ func (r *CommentRepository) DeleteComment(ctx context.Context, userID string, co
 		WHERE id = @id AND user_id = @user_id
 	`
 	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
-		"id": commentID,
+		"id":      commentID,
 		"user_id": userID,
 	})
 
@@ -129,8 +135,8 @@ func (r *CommentRepository) DeleteComment(ctx context.Context, userID string, co
 		return fmt.Errorf("failed to execute delete comment query for user_id=%s comment_id=%s: %w", userID, commentID, err)
 	}
 
-	if (result.RowsAffected() == 0) {
-		return fmt.Errorf("no comment found to delete for user_id=%s comment_id=%s", userID, commentID)
+	if result.RowsAffected() == 0 {
+		return newDomainNotFoundError("COMMENT")
 	}
 
 	return nil

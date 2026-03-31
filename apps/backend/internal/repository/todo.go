@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iancenry/jarvis/internal/errs"
 	"github.com/iancenry/jarvis/internal/model"
 	"github.com/iancenry/jarvis/internal/model/attachment"
 	"github.com/iancenry/jarvis/internal/model/todo"
@@ -146,6 +145,9 @@ func (r *TodoRepository) GetTodoByID(ctx context.Context, userID string, todoID 
 	todoItem, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[todo.PopulatedTodo])
 
 	if err != nil {
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("TODO")
+		}
 		return nil, fmt.Errorf("failed to collect todo by id for user_id=%s todo_id=%s: %w", userID, todoID, err)
 	}
 
@@ -170,8 +172,8 @@ func (r *TodoRepository) CheckTodoExists(ctx context.Context, userID string, tod
 	todoItem, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[todo.Todo])
 
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("todo not found for user_id=%s id=%s", userID, todoID)
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("TODO")
 		}
 		return nil, fmt.Errorf("failed to collect todo exists for user_id=%s id=%s: %w", userID, todoID, err)
 	}
@@ -389,6 +391,9 @@ func (r *TodoRepository) UpdateTodo(ctx context.Context, userID string, payload 
 	todoItem, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[todo.Todo])
 
 	if err != nil {
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("TODO")
+		}
 		return nil, fmt.Errorf("failed to collect updated todo for user_id=%s todo_id=%s: %w", userID, payload.ID, err)
 	}
 
@@ -407,8 +412,7 @@ func (r *TodoRepository) DeleteTodo(ctx context.Context, userID string, todoID u
 	}
 
 	if result.RowsAffected() == 0 {
-		code := "TODO_NOT_FOUND"
-		return errs.NewNotFoundError("todo not found", false, &code)
+		return newDomainNotFoundError("TODO")
 	}
 
 	return nil
@@ -501,9 +505,8 @@ func (r *TodoRepository) GetTodoAttachment(ctx context.Context, todoID uuid.UUID
 	attachmentItem, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[attachment.Attachment])
 
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			code := "ATTACHMENT_NOT_FOUND"
-			return nil, errs.NewNotFoundError("attachment not found", false, &code)
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("ATTACHMENT")
 		}
 		return nil, fmt.Errorf("failed to collect todo attachment for todo_id=%s attachment_id=%s: %w", todoID, attachmentID, err)
 	}
@@ -549,8 +552,7 @@ func (r *TodoRepository) DeleteAttachment(ctx context.Context, todoID uuid.UUID,
 	}
 
 	if result.RowsAffected() == 0 {
-		code := "ATTACHMENT_NOT_FOUND"
-		return errs.NewNotFoundError("attachment not found", false, &code)
+		return newDomainNotFoundError("ATTACHMENT")
 	}
 
 	return nil

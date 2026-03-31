@@ -39,6 +39,21 @@ func NewBadRequestError(message string, override bool, code *string, errors []Fi
 	}
 }
 
+func NewConflictError(message string, override bool, code *string) *HTTPError {
+	formattedCode := MakeUpperCaseWithUnderscores(http.StatusText(http.StatusConflict))
+
+	if code != nil {
+		formattedCode = *code
+	}
+
+	return &HTTPError{
+		Code:     formattedCode,
+		Message:  message,
+		Status:   http.StatusConflict,
+		Override: override,
+	}
+}
+
 func NewNotFoundError(message string, override bool, code *string) *HTTPError {
 	formattedCode := MakeUpperCaseWithUnderscores(http.StatusText(http.StatusNotFound))
 

@@ -52,3 +52,69 @@ func TestCategoryRepository_UpdateCategory(t *testing.T) {
 		assert.Nil(t, result.Description)
 	})
 }
+
+func TestCategoryRepository_DomainErrors(t *testing.T) {
+	_, testServer, cleanup := testing_pkg.SetupTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	categoryRepo := repository.NewCategoryRepository(testServer)
+	userID := uuid.New().String()
+
+	t.Run("create duplicate category name returns conflict", func(t *testing.T) {
+		_, err := categoryRepo.CreateCategory(ctx, userID, &category.CreateCategoryPayload{
+			Name:  "Work",
+			Color: "#ff0000",
+		})
+		require.NoError(t, err)
+
+		result, err := categoryRepo.CreateCategory(ctx, userID, &category.CreateCategoryPayload{
+			Name:  "Work",
+			Color: "#00ff00",
+		})
+		require.Nil(t, result)
+		assertRepositoryConflictError(t, err, "CATEGORY_ALREADY_EXISTS", "category with this name already exists")
+	})
+
+	t.Run("get missing category returns not found", func(t *testing.T) {
+		result, err := categoryRepo.GetCategoryByID(ctx, userID, uuid.New())
+		require.Nil(t, result)
+		assertRepositoryNotFoundError(t, err, "CATEGORY_NOT_FOUND", "category not found")
+	})
+
+	t.Run("update conflicting category name returns conflict", func(t *testing.T) {
+		first, err := categoryRepo.CreateCategory(ctx, userID, &category.CreateCategoryPayload{
+			Name:  "Personal",
+			Color: "#111111",
+		})
+		require.NoError(t, err)
+
+		second, err := categoryRepo.CreateCategory(ctx, userID, &category.CreateCategoryPayload{
+			Name:  "Errands",
+			Color: "#222222",
+		})
+		require.NoError(t, err)
+
+		result, err := categoryRepo.UpdateCategory(ctx, userID, second.ID, &category.UpdateCategoryPayload{
+			ID:   second.ID,
+			Name: validation.NewPatchValue(first.Name),
+		})
+		require.Nil(t, result)
+		assertRepositoryConflictError(t, err, "CATEGORY_ALREADY_EXISTS", "category with this name already exists")
+	})
+
+	t.Run("update missing category returns not found", func(t *testing.T) {
+		categoryID := uuid.New()
+		result, err := categoryRepo.UpdateCategory(ctx, userID, categoryID, &category.UpdateCategoryPayload{
+			ID:   categoryID,
+			Name: validation.NewPatchValue("Updated"),
+		})
+		require.Nil(t, result)
+		assertRepositoryNotFoundError(t, err, "CATEGORY_NOT_FOUND", "category not found")
+	})
+
+	t.Run("delete missing category returns not found", func(t *testing.T) {
+		err := categoryRepo.DeleteCategory(ctx, userID, uuid.New())
+		assertRepositoryNotFoundError(t, err, "CATEGORY_NOT_FOUND", "category not found")
+	})
+}

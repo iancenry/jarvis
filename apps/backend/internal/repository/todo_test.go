@@ -3,6 +3,7 @@ package repository_test
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -140,6 +141,7 @@ func TestTodoRepository_GetTodoByID(t *testing.T) {
 		result, err := todoRepo.GetTodoByID(ctx, userID, nonExistentID)
 		assert.Error(t, err)
 		assert.Nil(t, result)
+		assertRepositoryNotFoundError(t, err, "TODO_NOT_FOUND", "todo not found")
 	})
 
 	t.Run("get todo with wrong user id", func(t *testing.T) {
@@ -148,6 +150,7 @@ func TestTodoRepository_GetTodoByID(t *testing.T) {
 		result, err := todoRepo.GetTodoByID(ctx, wrongUserID, testTodo.ID)
 		assert.Error(t, err)
 		assert.Nil(t, result)
+		assertRepositoryNotFoundError(t, err, "TODO_NOT_FOUND", "todo not found")
 	})
 
 	t.Run("with canceled context", func(t *testing.T) {
@@ -186,6 +189,7 @@ func TestTodoRepository_CheckTodoExists(t *testing.T) {
 		result, err := todoRepo.CheckTodoExists(ctx, userID, nonExistentID)
 		assert.Error(t, err)
 		assert.Nil(t, result)
+		assertRepositoryNotFoundError(t, err, "TODO_NOT_FOUND", "todo not found")
 	})
 
 	t.Run("check todo with wrong user id", func(t *testing.T) {
@@ -194,6 +198,7 @@ func TestTodoRepository_CheckTodoExists(t *testing.T) {
 		result, err := todoRepo.CheckTodoExists(ctx, wrongUserID, testTodo.ID)
 		assert.Error(t, err)
 		assert.Nil(t, result)
+		assertRepositoryNotFoundError(t, err, "TODO_NOT_FOUND", "todo not found")
 	})
 }
 
@@ -441,6 +446,7 @@ func TestTodoRepository_UpdateTodo(t *testing.T) {
 		result, err := todoRepo.UpdateTodo(ctx, userID, payload)
 		assert.Error(t, err)
 		assert.Nil(t, result)
+		assertRepositoryNotFoundError(t, err, "TODO_NOT_FOUND", "todo not found")
 	})
 
 	t.Run("with canceled context", func(t *testing.T) {
@@ -539,8 +545,7 @@ func TestTodoRepository_DeleteTodo(t *testing.T) {
 		nonExistentID := uuid.New()
 
 		err := todoRepo.DeleteTodo(ctx, userID, nonExistentID)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "todo not found")
+		assertRepositoryHTTPError(t, err, http.StatusNotFound, "TODO_NOT_FOUND", "todo not found")
 	})
 
 	t.Run("with canceled context", func(t *testing.T) {
