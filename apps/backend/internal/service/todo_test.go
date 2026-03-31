@@ -8,11 +8,13 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iancenry/jarvis/internal/config"
+	"github.com/iancenry/jarvis/internal/errs"
 	"github.com/iancenry/jarvis/internal/middleware"
 	"github.com/iancenry/jarvis/internal/model"
 	"github.com/iancenry/jarvis/internal/model/attachment"
@@ -91,25 +93,29 @@ func (s *attachmentRepoStub) RestoreAttachment(ctx context.Context, item *attach
 }
 
 type attachmentStoreStub struct {
-	uploadFileFn       func(ctx context.Context, bucket, filename string, file io.Reader) (string, error)
+	uploadFileFn       func(ctx context.Context, bucket, fileKey string, file io.Reader, fileSize int64, contentType string) (string, error)
 	createPresignedURL func(ctx context.Context, bucket, fileKey string) (string, error)
 	deleteFileFn       func(ctx context.Context, bucket, fileKey string) error
 
 	uploadedBuckets []string
-	uploadedFiles   []string
+	uploadedKeys    []string
+	uploadedSizes   []int64
+	uploadedTypes   []string
 	deletedBuckets  []string
 	deletedKeys     []string
 	deleteCalls     int
 }
 
-func (s *attachmentStoreStub) UploadFile(ctx context.Context, bucket, filename string, file io.Reader) (string, error) {
+func (s *attachmentStoreStub) UploadFile(ctx context.Context, bucket, fileKey string, file io.Reader, fileSize int64, contentType string) (string, error) {
 	s.uploadedBuckets = append(s.uploadedBuckets, bucket)
-	s.uploadedFiles = append(s.uploadedFiles, filename)
+	s.uploadedKeys = append(s.uploadedKeys, fileKey)
+	s.uploadedSizes = append(s.uploadedSizes, fileSize)
+	s.uploadedTypes = append(s.uploadedTypes, contentType)
 	if s.uploadFileFn != nil {
-		return s.uploadFileFn(ctx, bucket, filename, file)
+		return s.uploadFileFn(ctx, bucket, fileKey, file, fileSize, contentType)
 	}
 
-	return "uploaded-key", nil
+	return fileKey, nil
 }
 
 func (s *attachmentStoreStub) CreatePresignedURL(ctx context.Context, bucket, fileKey string) (string, error) {
@@ -131,6 +137,47 @@ func (s *attachmentStoreStub) DeleteFile(ctx context.Context, bucket, fileKey st
 	return nil
 }
 
+func TestUploadTodoAttachmentSanitizesNameAndUsesUUIDStorageKey(t *testing.T) {
+	todoID := uuid.New()
+	uploadedPNG := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00, 0x00, 0x00, 0x0d}
+	repo := &attachmentRepoStub{
+		addAttachmentFn: func(ctx context.Context, receivedTodoID uuid.UUID, userID string, s3Key string, fileName string, fileSize int64, mimeType string) (*attachment.Attachment, error) {
+			assert.Equal(t, todoID, receivedTodoID)
+			assert.Equal(t, "Avatar-Final.png", fileName)
+			assert.Equal(t, "image/png", mimeType)
+			return &attachment.Attachment{
+				Base: model.Base{
+					BaseWithId: model.BaseWithId{ID: uuid.New()},
+				},
+				Name:        fileName,
+				DownloadKey: s3Key,
+			}, nil
+		},
+	}
+	store := &attachmentStoreStub{
+		uploadFileFn: func(ctx context.Context, bucket, fileKey string, file io.Reader, fileSize int64, contentType string) (string, error) {
+			payload, err := io.ReadAll(file)
+			require.NoError(t, err)
+			assert.Equal(t, uploadedPNG, payload)
+			assert.Equal(t, "attachments-bucket", bucket)
+			assert.EqualValues(t, len(uploadedPNG), fileSize)
+			assert.Equal(t, "image/png", contentType)
+			return fileKey, nil
+		},
+	}
+
+	service := newTestTodoService(repo, store)
+	fileHeader := newMultipartFileHeader(t, "file", "../Avatar Final!.PNG", uploadedPNG)
+
+	attachmentItem, err := service.UploadTodoAttachment(newTestEchoContext(), "user-1", todoID, fileHeader)
+
+	require.NoError(t, err)
+	require.NotNil(t, attachmentItem)
+	require.Len(t, store.uploadedKeys, 1)
+	assert.Regexp(t, regexp.MustCompile(`^todos/attachments/[0-9a-f-]+\.png$`), store.uploadedKeys[0])
+	assert.Equal(t, "image/png", store.uploadedTypes[0])
+}
+
 func TestUploadTodoAttachmentCleansUpS3WhenMetadataWriteFails(t *testing.T) {
 	todoID := uuid.New()
 	metadataErr := errors.New("insert attachment metadata failed")
@@ -146,11 +193,13 @@ func TestUploadTodoAttachmentCleansUpS3WhenMetadataWriteFails(t *testing.T) {
 		},
 	}
 	store := &attachmentStoreStub{
-		uploadFileFn: func(ctx context.Context, bucket, filename string, file io.Reader) (string, error) {
+		uploadFileFn: func(ctx context.Context, bucket, fileKey string, file io.Reader, fileSize int64, contentType string) (string, error) {
 			payload, err := io.ReadAll(file)
 			require.NoError(t, err)
 			assert.Equal(t, "attachments-bucket", bucket)
-			assert.Equal(t, "todos/attachments/note.txt", filename)
+			assert.Regexp(t, regexp.MustCompile(`^todos/attachments/[0-9a-f-]+\.txt$`), fileKey)
+			assert.EqualValues(t, 4, fileSize)
+			assert.Equal(t, "text/plain", contentType)
 			assert.Equal(t, []byte("tiny"), payload)
 			return "uploaded-key", nil
 		},
@@ -167,6 +216,44 @@ func TestUploadTodoAttachmentCleansUpS3WhenMetadataWriteFails(t *testing.T) {
 	assert.Equal(t, []string{"uploaded-key"}, store.deletedKeys)
 	assert.Equal(t, 1, store.deleteCalls)
 	assert.NotEmpty(t, repo.lastAddedMimeType)
+}
+
+func TestUploadTodoAttachmentRejectsOversizedFiles(t *testing.T) {
+	service := newTestTodoService(&attachmentRepoStub{}, &attachmentStoreStub{})
+
+	attachmentItem, err := service.UploadTodoAttachment(
+		newTestEchoContext(),
+		"user-1",
+		uuid.New(),
+		&multipart.FileHeader{
+			Filename: "note.txt",
+			Size:     MaxAttachmentSizeBytes + 1,
+		},
+	)
+
+	require.Nil(t, attachmentItem)
+	require.Error(t, err)
+
+	var httpErr *errs.HTTPError
+	require.ErrorAs(t, err, &httpErr)
+	assert.Equal(t, "ATTACHMENT_FILE_TOO_LARGE", httpErr.Code)
+}
+
+func TestUploadTodoAttachmentRejectsUnsupportedContentTypes(t *testing.T) {
+	repo := &attachmentRepoStub{}
+	store := &attachmentStoreStub{}
+	service := newTestTodoService(repo, store)
+	fileHeader := newMultipartFileHeader(t, "file", "payload.bin", []byte{0x00, 0x01, 0x02, 0x03})
+
+	attachmentItem, err := service.UploadTodoAttachment(newTestEchoContext(), "user-1", uuid.New(), fileHeader)
+
+	require.Nil(t, attachmentItem)
+	require.Error(t, err)
+
+	var httpErr *errs.HTTPError
+	require.ErrorAs(t, err, &httpErr)
+	assert.Equal(t, "ATTACHMENT_FILE_TYPE_NOT_ALLOWED", httpErr.Code)
+	assert.Empty(t, store.uploadedKeys)
 }
 
 func TestDeleteTodoAttachmentRestoresMetadataWhenS3DeleteFails(t *testing.T) {

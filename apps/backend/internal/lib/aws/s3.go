@@ -1,11 +1,9 @@
 package aws
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -25,20 +23,13 @@ func NewS3Client(server *server.Server, cfg aws.Config) *S3Client {
 	}
 }
 
-func (s *S3Client) UploadFile(ctx context.Context, bucket, filename string, file io.Reader) (string, error) {
-	fileKey := fmt.Sprintf("%s_%d", filename, time.Now().Unix())
-	var buffer bytes.Buffer
-
-	_, err := io.Copy(&buffer, file)
-	if err != nil {
-		return "", fmt.Errorf("failed to read file: %w", err)
-	}
-
-	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(fileKey),
-		Body:   bytes.NewReader(buffer.Bytes()),
-		ContentType: aws.String(http.DetectContentType(buffer.Bytes())),
+func (s *S3Client) UploadFile(ctx context.Context, bucket, fileKey string, file io.Reader, fileSize int64, contentType string) (string, error) {
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:        aws.String(bucket),
+		Key:           aws.String(fileKey),
+		Body:          file,
+		ContentLength: aws.Int64(fileSize),
+		ContentType:   aws.String(contentType),
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to upload file to S3: %w", err)

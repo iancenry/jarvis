@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,7 +33,7 @@ type todoAttachmentRepository interface {
 }
 
 type attachmentFileStore interface {
-	UploadFile(ctx context.Context, bucket, filename string, file io.Reader) (string, error)
+	UploadFile(ctx context.Context, bucket, fileKey string, file io.Reader, fileSize int64, contentType string) (string, error)
 	CreatePresignedURL(ctx context.Context, bucket, fileKey string) (string, error)
 	DeleteFile(ctx context.Context, bucket, fileKey string) error
 }
@@ -234,6 +233,21 @@ func (ts *TodoService) UploadTodoAttachment(ctx echo.Context, userID string, tod
 		return nil, err
 	}
 
+	sanitizedFileName, err := sanitizeAttachmentFileName(file.Filename)
+	if err != nil {
+		logger.Warn().Err(err).Str("filename", file.Filename).Msg("attachment filename validation failed")
+		return nil, err
+	}
+
+	if err := validateAttachmentSize(file.Size); err != nil {
+		logger.Warn().
+			Err(err).
+			Str("filename", sanitizedFileName).
+			Int64("size", file.Size).
+			Msg("attachment size validation failed")
+		return nil, err
+	}
+
 	// Open the uploaded file
 	src, err := file.Open()
 	if err != nil {
@@ -242,37 +256,31 @@ func (ts *TodoService) UploadTodoAttachment(ctx echo.Context, userID string, tod
 	}
 	defer src.Close()
 
+	contentType, uploadReader, err := detectAttachmentContentType(src)
+	if err != nil {
+		logger.Warn().
+			Err(err).
+			Str("filename", sanitizedFileName).
+			Int64("size", file.Size).
+			Msg("attachment content validation failed")
+		return nil, err
+	}
+
+	storageKey := buildAttachmentStorageKey(sanitizedFileName)
 	s3Key, err := ts.fileStore.UploadFile(
 		ctx.Request().Context(),
 		ts.server.Config.AWS.UploadBucket,
-		"todos/attachments/"+file.Filename,
-		src,
+		storageKey,
+		uploadReader,
+		file.Size,
+		contentType,
 	)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to upload file to S3")
 		return nil, err
 	}
 
-	src, err = file.Open()
-	if err != nil {
-		logger.Error().Err(err).Msg("failed to reopen uploaded file")
-		return nil, ts.compensateAttachmentUpload(logger, s3Key, errs.NewBadRequestError("failed to process uploaded file", false, nil, nil, nil))
-	}
-	defer src.Close()
-
-	buffer := make([]byte, 512)
-	bytesRead, err := io.ReadFull(src, buffer)
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-		logger.Error().Err(err).Msg("failed to read uploaded file")
-		return nil, ts.compensateAttachmentUpload(logger, s3Key, errs.NewBadRequestError("failed to process uploaded file", false, nil, nil, nil))
-	}
-
-	mimeType := http.DetectContentType(buffer[:bytesRead])
-	if bytesRead == 0 {
-		mimeType = "application/octet-stream"
-	}
-
-	attachmentItem, err := ts.attachmentRepo.AddAttachment(ctx.Request().Context(), todoID, userID, s3Key, file.Filename, file.Size, mimeType)
+	attachmentItem, err := ts.attachmentRepo.AddAttachment(ctx.Request().Context(), todoID, userID, s3Key, sanitizedFileName, file.Size, contentType)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to save attachment metadata")
 		return nil, ts.compensateAttachmentUpload(logger, s3Key, err)
@@ -282,9 +290,9 @@ func (ts *TodoService) UploadTodoAttachment(ctx echo.Context, userID string, tod
 		Str("s3_key", s3Key).
 		Str("todo_id", todoID.String()).
 		Str("attachment_id", attachmentItem.ID.String()).
-		Str("filename", file.Filename).
+		Str("filename", sanitizedFileName).
 		Int64("size", file.Size).
-		Str("mime_type", mimeType).
+		Str("mime_type", contentType).
 		Msg("attachment uploaded")
 
 	return attachmentItem, nil

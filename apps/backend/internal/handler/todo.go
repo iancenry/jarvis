@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/iancenry/jarvis/internal/errs"
@@ -20,7 +22,7 @@ type TodoHandler struct {
 
 func NewTodoHandler(s *server.Server, todoService *service.TodoService) *TodoHandler {
 	return &TodoHandler{
-		Handler: NewHandler(s),
+		Handler:     NewHandler(s),
 		todoService: todoService,
 	}
 }
@@ -85,7 +87,6 @@ func (th *TodoHandler) DeleteTodo(c echo.Context) error {
 	)(c)
 }
 
-
 func (th *TodoHandler) GetTodoStats(c echo.Context) error {
 	return Handle(
 		th.Handler,
@@ -104,8 +105,20 @@ func (th *TodoHandler) AddAttachment(c echo.Context) error {
 		func(c echo.Context, payload *attachment.UploadTodoAttachmentPayload) (*attachment.Attachment, error) {
 			userID := middleware.GetUserID(c)
 
+			c.Request().Body = http.MaxBytesReader(c.Response(), c.Request().Body, service.MaxAttachmentUploadRequestSizeBytes)
 			form, err := c.MultipartForm()
 			if err != nil {
+				var maxBytesErr *http.MaxBytesError
+				if errors.As(err, &maxBytesErr) {
+					code := "ATTACHMENT_FILE_TOO_LARGE"
+					return nil, errs.NewBadRequestError(
+						fmt.Sprintf("attachment file exceeds %d MB limit", service.MaxAttachmentSizeBytes/(1<<20)),
+						false,
+						&code,
+						nil,
+						nil,
+					)
+				}
 				return nil, errs.NewBadRequestError("multipart form not found", false, nil, nil, nil)
 			}
 
