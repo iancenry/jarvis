@@ -11,14 +11,13 @@ import (
 )
 
 type CategoryService struct {
-	server *server.Server
+	server       *server.Server
 	categoryRepo *repository.CategoryRepository
-	
 }
 
 func NewCategoryService(s *server.Server, categoryRepo *repository.CategoryRepository) *CategoryService {
 	return &CategoryService{
-		server: s,
+		server:       s,
 		categoryRepo: categoryRepo,
 	}
 }
@@ -68,13 +67,6 @@ func (cs *CategoryService) GetCategoryByID(ctx echo.Context, userID string, cate
 
 func (cs *CategoryService) UpdateCategory(ctx echo.Context, userID string, categoryID uuid.UUID, payload *category.UpdateCategoryPayload) (*category.Category, error) {
 	logger := middleware.GetLogger(ctx)
-	
-	// Check if category exists and belongs to the user
-	_, err := cs.categoryRepo.GetCategoryByID(ctx.Request().Context(), userID, categoryID)
-	if err != nil {
-		logger.Error().Err(err).Msg("category validation failed for update")
-		return nil, err
-	}
 
 	categoryItem, err := cs.categoryRepo.UpdateCategory(ctx.Request().Context(), userID, categoryID, payload)
 	if err != nil {
@@ -95,16 +87,9 @@ func (cs *CategoryService) UpdateCategory(ctx echo.Context, userID string, categ
 func (cs *CategoryService) DeleteCategory(ctx echo.Context, userID string, categoryID uuid.UUID) error {
 	logger := middleware.GetLogger(ctx)
 
-	// Check if category exists and belongs to the user
-	_, err := cs.categoryRepo.GetCategoryByID(ctx.Request().Context(), userID, categoryID)
+	deletedCategory, err := cs.categoryRepo.DeleteCategory(ctx.Request().Context(), userID, categoryID)
 	if err != nil {
-		logger.Error().Err(err).Msg("category validation failed for deletion")
-		return err
-	}
-
-	err = cs.categoryRepo.DeleteCategory(ctx.Request().Context(), userID, categoryID)
-	if err != nil {
-		logger.Error().Err(err).Msg("failed to delete category")	
+		logger.Error().Err(err).Msg("failed to delete category")
 		return err
 	}
 
@@ -112,8 +97,8 @@ func (cs *CategoryService) DeleteCategory(ctx echo.Context, userID string, categ
 	eventLogger := middleware.GetLogger(ctx)
 	eventLogger.Info().
 		Str("event", "category_deleted").
-		Str("category_id", categoryID.String()).
+		Str("category_id", deletedCategory.ID.String()).
 		Msg("Category deleted")
 
-	return nil	
+	return nil
 }

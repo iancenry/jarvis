@@ -10,29 +10,21 @@ import (
 )
 
 type CommentService struct {
-	server *server.Server
+	server      *server.Server
 	commentRepo *repository.CommentRepository
-	todoRepo *repository.TodoRepository
-
+	todoRepo    *repository.TodoRepository
 }
 
 func NewCommentService(s *server.Server, commentRepo *repository.CommentRepository, todoRepo *repository.TodoRepository) *CommentService {
 	return &CommentService{
-		server: s,
+		server:      s,
 		commentRepo: commentRepo,
-		todoRepo: todoRepo,
+		todoRepo:    todoRepo,
 	}
 }
 
 func (cs *CommentService) CreateComment(ctx echo.Context, userID string, todoID uuid.UUID, payload *comment.CreateCommentPayload) (*comment.Comment, error) {
 	logger := middleware.GetLogger(ctx)
-
-	// Validate the associated todo exists and belongs to the user
-	_, err := cs.todoRepo.CheckTodoExists(ctx.Request().Context(), userID, todoID)
-	if err != nil {
-		logger.Error().Err(err).Msg("todo validation failed for comment creation")
-		return nil, err
-	}
 
 	commentItem, err := cs.commentRepo.CreateComment(ctx.Request().Context(), userID, todoID, payload)
 	if err != nil {
@@ -73,15 +65,7 @@ func (cs *CommentService) GetCommentsByTodoID(ctx echo.Context, userID string, t
 func (cs *CommentService) UpdateComment(ctx echo.Context, userID string, commentID uuid.UUID, payload *comment.UpdateCommentPayload) (*comment.Comment, error) {
 	logger := middleware.GetLogger(ctx)
 
-	// Validate the comment exists and belongs to the user
-	_, err := cs.commentRepo.GetCommentByID(ctx.Request().Context(), userID, commentID)
-	if err != nil {
-		logger.Error().Err(err).Msg("comment validation failed for update")
-		return nil, err
-	}
-
-
-	updatedComment, err := cs.commentRepo.UpdateComment(ctx.Request().Context(), userID,  payload)
+	updatedComment, err := cs.commentRepo.UpdateComment(ctx.Request().Context(), userID, payload)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to update comment")
 		return nil, err
@@ -100,13 +84,7 @@ func (cs *CommentService) UpdateComment(ctx echo.Context, userID string, comment
 func (cs *CommentService) DeleteComment(ctx echo.Context, userID string, commentID uuid.UUID) error {
 	logger := middleware.GetLogger(ctx)
 
-	_, err := cs.commentRepo.GetCommentByID(ctx.Request().Context(), userID, commentID)
-	if err != nil {
-		logger.Error().Err(err).Msg("comment validation failed for deletion")
-		return err
-	}
-
-	err = cs.commentRepo.DeleteComment(ctx.Request().Context(), userID, commentID)
+	deletedComment, err := cs.commentRepo.DeleteComment(ctx.Request().Context(), userID, commentID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to delete comment")
 		return err
@@ -116,7 +94,7 @@ func (cs *CommentService) DeleteComment(ctx echo.Context, userID string, comment
 	eventLogger := middleware.GetLogger(ctx)
 	eventLogger.Info().
 		Str("event", "comment_deleted").
-		Str("comment_id", commentID.String()).
+		Str("comment_id", deletedComment.ID.String()).
 		Msg("Comment deleted")
 
 	return nil

@@ -197,7 +197,7 @@ func (ts *TodoService) UpdateTodo(ctx echo.Context, userID string, payload *todo
 func (ts *TodoService) DeleteTodo(ctx echo.Context, userID string, todoID uuid.UUID) error {
 	logger := middleware.GetLogger(ctx)
 
-	err := ts.todoRepo.DeleteTodo(ctx.Request().Context(), userID, todoID)
+	deletedTodo, err := ts.todoRepo.DeleteTodo(ctx.Request().Context(), userID, todoID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to delete todo")
 		return err
@@ -207,7 +207,8 @@ func (ts *TodoService) DeleteTodo(ctx echo.Context, userID string, todoID uuid.U
 	eventLogger := middleware.GetLogger(ctx)
 	eventLogger.Info().
 		Str("event", "todo_deleted").
-		Str("todo_id", todoID.String()).
+		Str("todo_id", deletedTodo.ID.String()).
+		Str("title", deletedTodo.Title).
 		Msg("todo deleted")
 
 	return nil

@@ -203,22 +203,27 @@ func (r *CategoryRepository) UpdateCategory(ctx context.Context, userID string, 
 	return &updatedCategory, nil
 }
 
-func (r *CategoryRepository) DeleteCategory(ctx context.Context, userID string, categoryID uuid.UUID) error {
+func (r *CategoryRepository) DeleteCategory(ctx context.Context, userID string, categoryID uuid.UUID) (*category.Category, error) {
 	stmt := `
 		DELETE FROM todo_categories
 		WHERE user_id = @user_id AND id = @id
+		RETURNING *
 	`
-	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"user_id": userID,
 		"id":      categoryID,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to execute delete category query for user_id=%s and category_id=%s: %w", userID, categoryID, err)
+		return nil, fmt.Errorf("failed to execute delete category query for user_id=%s and category_id=%s: %w", userID, categoryID, err)
 	}
 
-	if result.RowsAffected() == 0 {
-		return newDomainNotFoundError("CATEGORY")
+	deletedCategory, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[category.Category])
+	if err != nil {
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("CATEGORY")
+		}
+		return nil, fmt.Errorf("failed to collect deleted category for user_id=%s and category_id=%s: %w", userID, categoryID, err)
 	}
 
-	return nil
+	return &deletedCategory, nil
 }

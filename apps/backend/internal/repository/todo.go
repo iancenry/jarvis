@@ -400,22 +400,26 @@ func (r *TodoRepository) UpdateTodo(ctx context.Context, userID string, payload 
 	return &todoItem, nil
 }
 
-func (r *TodoRepository) DeleteTodo(ctx context.Context, userID string, todoID uuid.UUID) error {
-	stmt := `DELETE FROM todos WHERE id = @id AND user_id = @user_id`
+func (r *TodoRepository) DeleteTodo(ctx context.Context, userID string, todoID uuid.UUID) (*todo.Todo, error) {
+	stmt := `DELETE FROM todos WHERE id = @id AND user_id = @user_id RETURNING *`
 
-	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"id":      todoID,
 		"user_id": userID,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to execute delete todo query for user_id=%s todo_id=%s: %w", userID, todoID, err)
+		return nil, fmt.Errorf("failed to execute delete todo query for user_id=%s todo_id=%s: %w", userID, todoID, err)
 	}
 
-	if result.RowsAffected() == 0 {
-		return newDomainNotFoundError("TODO")
+	deletedTodo, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[todo.Todo])
+	if err != nil {
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("TODO")
+		}
+		return nil, fmt.Errorf("failed to collect deleted todo for user_id=%s todo_id=%s: %w", userID, todoID, err)
 	}
 
-	return nil
+	return &deletedTodo, nil
 }
 
 func (r *TodoRepository) GetTodoStats(ctx context.Context, userID string) (*todo.TodoStats, error) {

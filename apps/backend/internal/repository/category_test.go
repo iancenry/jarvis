@@ -114,7 +114,33 @@ func TestCategoryRepository_DomainErrors(t *testing.T) {
 	})
 
 	t.Run("delete missing category returns not found", func(t *testing.T) {
-		err := categoryRepo.DeleteCategory(ctx, userID, uuid.New())
+		deletedCategory, err := categoryRepo.DeleteCategory(ctx, userID, uuid.New())
+		assert.Nil(t, deletedCategory)
 		assertRepositoryNotFoundError(t, err, "CATEGORY_NOT_FOUND", "category not found")
 	})
+}
+
+func TestCategoryRepository_DeleteCategory(t *testing.T) {
+	_, testServer, cleanup := testing_pkg.SetupTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	categoryRepo := repository.NewCategoryRepository(testServer)
+	userID := uuid.New().String()
+
+	categoryItem, err := categoryRepo.CreateCategory(ctx, userID, &category.CreateCategoryPayload{
+		Name:  "Work",
+		Color: "#ff0000",
+	})
+	require.NoError(t, err)
+
+	deletedCategory, err := categoryRepo.DeleteCategory(ctx, userID, categoryItem.ID)
+	require.NoError(t, err)
+	require.NotNil(t, deletedCategory)
+	assert.Equal(t, categoryItem.ID, deletedCategory.ID)
+	assert.Equal(t, categoryItem.Name, deletedCategory.Name)
+
+	result, err := categoryRepo.GetCategoryByID(ctx, userID, categoryItem.ID)
+	assert.Nil(t, result)
+	assertRepositoryNotFoundError(t, err, "CATEGORY_NOT_FOUND", "category not found")
 }

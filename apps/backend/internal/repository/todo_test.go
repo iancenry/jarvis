@@ -532,8 +532,11 @@ func TestTodoRepository_DeleteTodo(t *testing.T) {
 	testTodo := createTestTodo(t, ctx, todoRepo, userID)
 
 	t.Run("delete todo successfully", func(t *testing.T) {
-		err := todoRepo.DeleteTodo(ctx, userID, testTodo.ID)
+		deletedTodo, err := todoRepo.DeleteTodo(ctx, userID, testTodo.ID)
 		require.NoError(t, err)
+		require.NotNil(t, deletedTodo)
+		assert.Equal(t, testTodo.ID, deletedTodo.ID)
+		assert.Equal(t, testTodo.Title, deletedTodo.Title)
 
 		// Verify todo is deleted
 		result, err := todoRepo.GetTodoByID(ctx, userID, testTodo.ID)
@@ -544,7 +547,8 @@ func TestTodoRepository_DeleteTodo(t *testing.T) {
 	t.Run("delete non-existent todo", func(t *testing.T) {
 		nonExistentID := uuid.New()
 
-		err := todoRepo.DeleteTodo(ctx, userID, nonExistentID)
+		deletedTodo, err := todoRepo.DeleteTodo(ctx, userID, nonExistentID)
+		assert.Nil(t, deletedTodo)
 		assertRepositoryHTTPError(t, err, http.StatusNotFound, "TODO_NOT_FOUND", "todo not found")
 	})
 
@@ -554,8 +558,9 @@ func TestTodoRepository_DeleteTodo(t *testing.T) {
 
 		testTodo := createTestTodo(t, ctx, todoRepo, userID)
 
-		err := todoRepo.DeleteTodo(canceledCtx, userID, testTodo.ID)
+		deletedTodo, err := todoRepo.DeleteTodo(canceledCtx, userID, testTodo.ID)
 		assert.Error(t, err)
+		assert.Nil(t, deletedTodo)
 	})
 }
 

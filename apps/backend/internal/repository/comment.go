@@ -23,7 +23,9 @@ func NewCommentRepository(s *server.Server) *CommentRepository {
 func (r *CommentRepository) CreateComment(ctx context.Context, userID string, todoID uuid.UUID, payload *comment.CreateCommentPayload) (*comment.Comment, error) {
 	stmt := `
 		INSERT INTO todo_comments (todo_id, user_id, content)
-		VALUES (@todo_id, @user_id, @content)
+		SELECT t.id, @user_id, @content
+		FROM todos t
+		WHERE t.id = @todo_id AND t.user_id = @user_id
 		RETURNING *
 		`
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
@@ -37,6 +39,9 @@ func (r *CommentRepository) CreateComment(ctx context.Context, userID string, to
 	}
 	comment, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[comment.Comment])
 	if err != nil {
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("TODO")
+		}
 		return nil, fmt.Errorf("failed to collect created comment for user_id=%s todo_id=%s: %w", userID, todoID, err)
 	}
 
@@ -121,23 +126,28 @@ func (r *CommentRepository) UpdateComment(ctx context.Context, userID string, pa
 	return &updatedComment, nil
 }
 
-func (r *CommentRepository) DeleteComment(ctx context.Context, userID string, commentID uuid.UUID) error {
+func (r *CommentRepository) DeleteComment(ctx context.Context, userID string, commentID uuid.UUID) (*comment.Comment, error) {
 	stmt := `
 		DELETE FROM todo_comments
 		WHERE id = @id AND user_id = @user_id
+		RETURNING *
 	`
-	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
+	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"id":      commentID,
 		"user_id": userID,
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to execute delete comment query for user_id=%s comment_id=%s: %w", userID, commentID, err)
+		return nil, fmt.Errorf("failed to execute delete comment query for user_id=%s comment_id=%s: %w", userID, commentID, err)
 	}
 
-	if result.RowsAffected() == 0 {
-		return newDomainNotFoundError("COMMENT")
+	deletedComment, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[comment.Comment])
+	if err != nil {
+		if isNoRowsError(err) {
+			return nil, newDomainNotFoundError("COMMENT")
+		}
+		return nil, fmt.Errorf("failed to collect deleted comment for user_id=%s comment_id=%s: %w", userID, commentID, err)
 	}
 
-	return nil
+	return &deletedComment, nil
 }
