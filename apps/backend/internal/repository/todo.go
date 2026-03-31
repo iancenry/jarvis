@@ -21,6 +21,7 @@ import (
 type TodoRepository struct {
 	server *server.Server
 }
+
 // todoSortColumns maps allowed sort fields from the API to their corresponding database columns to prevent SQL injection through the sort parameter
 var todoSortColumns = map[string]string{
 	"created_at": "t.created_at",
@@ -28,6 +29,46 @@ var todoSortColumns = map[string]string{
 	"due_date":   "t.due_date",
 	"priority":   "t.priority",
 }
+
+const populatedTodoSelectColumns = `
+	SELECT t.*,
+	CASE
+		WHEN c.id IS NOT NULL THEN jsonb(camel (c))
+		ELSE NULL
+	END AS category,
+	COALESCE(child_agg.children, '[]'::jsonb) AS children,
+	COALESCE(comment_agg.comments, '[]'::jsonb) AS comments,
+	COALESCE(attachment_agg.attachments, '[]'::jsonb) AS attachments
+`
+
+const populatedTodoJoins = `
+	FROM todos t
+		LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
+		LEFT JOIN LATERAL (
+			SELECT jsonb_agg(
+				to_jsonb(camel (child))
+				ORDER BY child.created_at ASC, child.sort_order ASC
+			) AS children
+			FROM todos child
+			WHERE child.parent_todo_id = t.id AND child.user_id = @user_id
+		) child_agg ON TRUE
+		LEFT JOIN LATERAL (
+			SELECT jsonb_agg(
+				to_jsonb(camel (com))
+				ORDER BY com.created_at ASC
+			) AS comments
+			FROM todo_comments com
+			WHERE com.todo_id = t.id AND com.user_id = @user_id
+		) comment_agg ON TRUE
+		LEFT JOIN LATERAL (
+			SELECT jsonb_agg(
+				to_jsonb(camel (att))
+				ORDER BY att.created_at ASC
+			) AS attachments
+			FROM attachments att
+			WHERE att.todo_id = t.id
+		) attachment_agg ON TRUE
+`
 
 // NewTodoRepository creates a new instance of TodoRepository with the provided server dependency
 func NewTodoRepository(server *server.Server) *TodoRepository {
@@ -90,43 +131,8 @@ func (r *TodoRepository) CreateTodo(ctx context.Context, userID string, payload 
 }
 
 func (r *TodoRepository) GetTodoByID(ctx context.Context, userID string, todoID uuid.UUID) (*todo.PopulatedTodo, error) {
-	stmt := `
-		SELECT t.*,
-		CASE
-			WHEN c.id IS NOT NULL THEN jsonb(camel (c))
-			ELSE NULL
-		END AS category,
-		COALESCE(
-			(
-				jsonb_agg(to_jsonb(camel (child))
-				ORDER BY child.created_at ASC, child.sort_order ASC)
-				FILTER (WHERE child.id IS NOT NULL)
-			),
-			'[]'::jsonb
-		) AS children,
-		COALESCE(
-			(
-				jsonb_agg(to_jsonb(camel (com))
-				ORDER BY com.created_at ASC)
-				FILTER (WHERE com.id IS NOT NULL)
-			),
-			'[]'::jsonb
-		) AS comments,
-		COALESCE(
-			(
-				jsonb_agg(to_jsonb(camel (att))
-				ORDER BY att.created_at ASC)
-				FILTER (WHERE att.id IS NOT NULL)
-			),
-			'[]'::jsonb
-		) AS attachments
-		FROM todos t
-			LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
-			LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
-			LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
-			LEFT JOIN attachments att ON att.todo_id = t.id
+	stmt := populatedTodoSelectColumns + populatedTodoJoins + `
 		WHERE t.id = @todo_id AND t.user_id = @user_id
-		GROUP BY t.id, c.id
 	`
 
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
@@ -174,42 +180,7 @@ func (r *TodoRepository) CheckTodoExists(ctx context.Context, userID string, tod
 }
 
 func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *todo.GetTodosQuery) (*model.PaginatedResponse[todo.PopulatedTodo], error) {
-	stmt := `
-		SELECT t.*,
-		CASE
-			WHEN c.id IS NOT NULL THEN jsonb(camel (c))
-			ELSE NULL
-		END AS category,
-		COALESCE(
-			(
-				jsonb_agg(to_jsonb(camel (child))
-				ORDER BY child.created_at ASC, child.sort_order ASC)
-				FILTER (WHERE child.id IS NOT NULL)
-			),
-			'[]'::jsonb
-		) AS children,
-		COALESCE(
-			(
-				jsonb_agg(to_jsonb(camel (com))
-				ORDER BY com.created_at ASC)
-				FILTER (WHERE com.id IS NOT NULL)
-			),
-			'[]'::jsonb
-		) AS comments,
-		COALESCE(
-			(
-				jsonb_agg(to_jsonb(camel (att))
-				ORDER BY att.created_at ASC)
-				FILTER (WHERE att.id IS NOT NULL)
-			),
-			'[]'::jsonb
-		) AS attachments
-		FROM todos t
-			LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
-			LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
-			LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
-			LEFT JOIN attachments att ON att.todo_id = t.id
-	`
+	stmt := populatedTodoSelectColumns + populatedTodoJoins
 
 	args := pgx.NamedArgs{
 		"user_id": userID,
@@ -279,11 +250,6 @@ func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *tod
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute count todos query for user_id=%s: %w", userID, err)
 	}
-
-	// group by is necessary to avoid duplicates when joining with categories and comments -
-	// otherwise we get a row for each comment which causes the same todo to be duplicated in the results
-	// also necessary when performing aggregation
-	stmt += " GROUP BY t.id, c.id"
 
 	sortColumn := todoSortColumns["created_at"]
 	if query.Sort != nil {
@@ -759,49 +725,11 @@ func (r *TodoRepository) GetWeeklyStatsForUsers(ctx context.Context, startDate, 
 }
 
 func (r *TodoRepository) GetCompletedTodosForUser(ctx context.Context, userID string, startDate, endDate time.Time) ([]todo.PopulatedTodo, error) {
-	stmt := `
-		SELECT t.*,
-			CASE
-				WHEN c.id IS NOT NULL THEN to_jsonb(camel (c))
-				ELSE NULL
-			END AS category,
-			COALESCE(
-				jsonb_agg(
-					CASE
-						WHEN child.id IS NOT NULL THEN to_jsonb(camel (child))
-						ELSE NULL
-					END
-				) FILTER (WHERE child.id IS NOT NULL),
-				'[]'::jsonb
-			) AS children,
-			COALESCE(
-				jsonb_agg(
-					CASE
-						WHEN com.id IS NOT NULL THEN to_jsonb(camel (com))
-						ELSE NULL
-					END
-				) FILTER (WHERE com.id IS NOT NULL),
-				'[]'::jsonb
-			) AS comments,
-			COALESCE(
-				jsonb_agg(
-					CASE
-						WHEN att.id IS NOT NULL THEN to_jsonb(camel (att))
-						ELSE NULL
-					END
-				) FILTER (WHERE att.id IS NOT NULL),
-				'[]'::jsonb
-			) AS attachments
-	FROM todos t
-	LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
-	LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
-	LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
-	LEFT JOIN attachments att ON att.todo_id = t.id
+	stmt := populatedTodoSelectColumns + populatedTodoJoins + `
 	WHERE t.user_id = @user_id
 	AND t.status = 'completed'
 	AND t.completed_at >= @start_date
 	AND t.completed_at <= @end_date
-	GROUP BY t.id, c.id
 	ORDER BY t.completed_at DESC
 	LIMIT 10
 	`
@@ -827,49 +755,10 @@ func (r *TodoRepository) GetCompletedTodosForUser(ctx context.Context, userID st
 }
 
 func (r *TodoRepository) GetOverdueTodosForUser(ctx context.Context, userID string) ([]todo.PopulatedTodo, error) {
-	stmt := `
-		SELECT t.*,
-			CASE
-				WHEN c.id IS NOT NULL THEN to_jsonb(camel (c))
-				ELSE NULL
-			END AS category,
-			COALESCE(
-				jsonb_agg(
-					CASE
-						WHEN child.id IS NOT NULL THEN to_jsonb(camel (child))
-						ELSE NULL
-					END
-				) FILTER (WHERE child.id IS NOT NULL),
-				'[]'::jsonb
-			) AS children,
-			COALESCE(
-				jsonb_agg(
-					CASE
-						WHEN com.id IS NOT NULL THEN to_jsonb(camel (com))
-						ELSE NULL
-					END
-				) FILTER (WHERE com.id IS NOT NULL),
-				'[]'::jsonb
-			) AS comments,
-			COALESCE(
-				jsonb_agg(
-					CASE
-						WHEN att.id IS NOT NULL THEN to_jsonb(camel (att))
-						ELSE NULL
-					END
-				) FILTER (WHERE att.id IS NOT NULL),
-				'[]'::jsonb
-		) AS attachments
-	FROM todos t
-		LEFT JOIN todo_categories c ON t.category_id = c.id AND c.user_id = @user_id
-		LEFT JOIN todos child ON child.parent_todo_id = t.id AND child.user_id = @user_id
-		LEFT JOIN todo_comments com ON com.todo_id = t.id AND com.user_id = @user_id
-		LEFT JOIN attachments att ON att.todo_id = t.id
-
+	stmt := populatedTodoSelectColumns + populatedTodoJoins + `
 	WHERE t.user_id = @user_id
 		AND t.status NOT IN ('completed', 'archived')
 		AND t.due_date < NOW()
-	GROUP BY t.id, c.id
 	ORDER BY t.due_date ASC
 	LIMIT 10
 	`

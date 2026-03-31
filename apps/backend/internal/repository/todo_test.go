@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	attachmentModel "github.com/iancenry/jarvis/internal/model/attachment"
+	commentModel "github.com/iancenry/jarvis/internal/model/comment"
 	"github.com/iancenry/jarvis/internal/model/todo"
 	"github.com/iancenry/jarvis/internal/repository"
 	testing_pkg "github.com/iancenry/jarvis/internal/testing"
@@ -117,6 +119,17 @@ func TestTodoRepository_GetTodoByID(t *testing.T) {
 		assert.Equal(t, testTodo.UserID, result.UserID)
 		assert.NotNil(t, result.Children)
 		assert.NotNil(t, result.Comments)
+	})
+
+	t.Run("does not duplicate nested relations", func(t *testing.T) {
+		commentRepo := repository.NewCommentRepository(testServer)
+		fixture := createPopulatedTodoFixture(t, ctx, todoRepo, commentRepo, userID, "Nested GetTodoByID", time.Now().Add(6*time.Hour))
+
+		result, err := todoRepo.GetTodoByID(ctx, userID, fixture.Parent.ID)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		assertPopulatedTodoFixture(t, result, fixture)
 	})
 
 	t.Run("get non-existent todo", func(t *testing.T) {
@@ -306,6 +319,26 @@ func TestTodoRepository_GetTodos(t *testing.T) {
 		assert.Equal(t, "Test Todo 1", result.Data[0].Title)
 		assert.Equal(t, "Test Todo 2", result.Data[1].Title)
 		assert.Equal(t, "Test Todo 3", result.Data[2].Title)
+	})
+
+	t.Run("does not duplicate nested relations", func(t *testing.T) {
+		commentRepo := repository.NewCommentRepository(testServer)
+		nestedUserID := uuid.New().String()
+		fixture := createPopulatedTodoFixture(t, ctx, todoRepo, commentRepo, nestedUserID, "Nested GetTodos", time.Now().Add(8*time.Hour))
+
+		page := 1
+		limit := 20
+		query := &todo.GetTodosQuery{
+			Page:  &page,
+			Limit: &limit,
+		}
+
+		result, err := todoRepo.GetTodos(ctx, nestedUserID, query)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Len(t, result.Data, 1)
+
+		assertPopulatedTodoFixture(t, &result.Data[0], fixture)
 	})
 
 	t.Run("with canceled context", func(t *testing.T) {
@@ -626,6 +659,32 @@ func TestTodoRepository_AutoArchiveQueries(t *testing.T) {
 	assert.Empty(t, eligibleTodos)
 }
 
+func TestTodoRepository_ReportQueriesDoNotDuplicateNestedRelations(t *testing.T) {
+	_, testServer, cleanup := testing_pkg.SetupTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	todoRepo := repository.NewTodoRepository(testServer)
+	commentRepo := repository.NewCommentRepository(testServer)
+	userID := uuid.New().String()
+
+	completedFixture := createPopulatedTodoFixture(t, ctx, todoRepo, commentRepo, userID, "Completed Report", time.Now().Add(-4*time.Hour))
+	completedTodo := setTodoStatus(t, ctx, todoRepo, userID, completedFixture.Parent.ID, todo.StatusCompleted)
+	require.NotNil(t, completedTodo.CompletedAt)
+
+	overdueFixture := createPopulatedTodoFixture(t, ctx, todoRepo, commentRepo, userID, "Overdue Report", time.Now().Add(-2*time.Hour))
+
+	completedTodos, err := todoRepo.GetCompletedTodosForUser(ctx, userID, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour))
+	require.NoError(t, err)
+	require.Len(t, completedTodos, 1)
+	assertPopulatedTodoFixture(t, &completedTodos[0], completedFixture)
+
+	overdueTodos, err := todoRepo.GetOverdueTodosForUser(ctx, userID)
+	require.NoError(t, err)
+	require.Len(t, overdueTodos, 1)
+	assertPopulatedTodoFixture(t, &overdueTodos[0], overdueFixture)
+}
+
 func createTestTodo(t *testing.T, ctx context.Context, repo *repository.TodoRepository, userID string) *todo.Todo {
 	t.Helper()
 
@@ -696,4 +755,112 @@ func setTodoStatus(t *testing.T, ctx context.Context, repo *repository.TodoRepos
 	require.NoError(t, err)
 
 	return result
+}
+
+type populatedTodoFixture struct {
+	Parent      *todo.Todo
+	Child       *todo.Todo
+	Comments    []*commentModel.Comment
+	Attachments []*attachmentModel.Attachment
+}
+
+func createPopulatedTodoFixture(t *testing.T, ctx context.Context, todoRepo *repository.TodoRepository, commentRepo *repository.CommentRepository, userID string, title string, dueDate time.Time) populatedTodoFixture {
+	t.Helper()
+
+	parentPayload := &todo.CreateTodoPayload{
+		Title:       title,
+		Description: testing_pkg.Ptr(title + " parent description"),
+		Priority:    testing_pkg.Ptr(todo.PriorityHigh),
+		DueDate:     &dueDate,
+	}
+
+	parent, err := todoRepo.CreateTodo(ctx, userID, parentPayload)
+	require.NoError(t, err)
+
+	childPayload := &todo.CreateTodoPayload{
+		Title:        title + " child",
+		Description:  testing_pkg.Ptr(title + " child description"),
+		Priority:     testing_pkg.Ptr(todo.PriorityMedium),
+		ParentTodoID: &parent.ID,
+	}
+
+	child, err := todoRepo.CreateTodo(ctx, userID, childPayload)
+	require.NoError(t, err)
+
+	commentOne, err := commentRepo.CreateComment(ctx, userID, parent.ID, &commentModel.CreateCommentPayload{
+		TodoID:  parent.ID,
+		Content: title + " comment 1",
+	})
+	require.NoError(t, err)
+
+	commentTwo, err := commentRepo.CreateComment(ctx, userID, parent.ID, &commentModel.CreateCommentPayload{
+		TodoID:  parent.ID,
+		Content: title + " comment 2",
+	})
+	require.NoError(t, err)
+
+	attachmentOne, err := todoRepo.AddAttachment(ctx, parent.ID, userID, title+"-key-1", title+"-attachment-1.txt", 128, "text/plain")
+	require.NoError(t, err)
+
+	attachmentTwo, err := todoRepo.AddAttachment(ctx, parent.ID, userID, title+"-key-2", title+"-attachment-2.txt", 256, "text/plain")
+	require.NoError(t, err)
+
+	return populatedTodoFixture{
+		Parent:      parent,
+		Child:       child,
+		Comments:    []*commentModel.Comment{commentOne, commentTwo},
+		Attachments: []*attachmentModel.Attachment{attachmentOne, attachmentTwo},
+	}
+}
+
+func assertPopulatedTodoFixture(t *testing.T, result *todo.PopulatedTodo, fixture populatedTodoFixture) {
+	t.Helper()
+
+	require.NotNil(t, result)
+	assert.Equal(t, fixture.Parent.ID, result.ID)
+
+	require.Len(t, result.Children, 1)
+	assert.Equal(t, fixture.Child.ID, result.Children[0].ID)
+
+	require.Len(t, result.Comments, len(fixture.Comments))
+	assert.ElementsMatch(t, commentIDs(fixture.Comments), populatedCommentIDs(result))
+
+	require.Len(t, result.Attachments, len(fixture.Attachments))
+	assert.ElementsMatch(t, attachmentIDs(fixture.Attachments), populatedAttachmentIDs(result))
+}
+
+func commentIDs(comments []*commentModel.Comment) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(comments))
+	for _, item := range comments {
+		ids = append(ids, item.ID)
+	}
+
+	return ids
+}
+
+func populatedCommentIDs(todoItem *todo.PopulatedTodo) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(todoItem.Comments))
+	for _, item := range todoItem.Comments {
+		ids = append(ids, item.ID)
+	}
+
+	return ids
+}
+
+func attachmentIDs(attachments []*attachmentModel.Attachment) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(attachments))
+	for _, item := range attachments {
+		ids = append(ids, item.ID)
+	}
+
+	return ids
+}
+
+func populatedAttachmentIDs(todoItem *todo.PopulatedTodo) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(todoItem.Attachments))
+	for _, item := range todoItem.Attachments {
+		ids = append(ids, item.ID)
+	}
+
+	return ids
 }
