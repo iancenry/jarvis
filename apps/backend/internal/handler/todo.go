@@ -10,26 +10,22 @@ import (
 	"github.com/iancenry/jarvis/internal/model"
 	"github.com/iancenry/jarvis/internal/model/attachment"
 	"github.com/iancenry/jarvis/internal/model/todo"
-	"github.com/iancenry/jarvis/internal/server"
 	"github.com/iancenry/jarvis/internal/service"
 	"github.com/labstack/echo/v4"
 )
 
 type TodoHandler struct {
-	Handler
 	todoService *service.TodoService
 }
 
-func NewTodoHandler(s *server.Server, todoService *service.TodoService) *TodoHandler {
+func NewTodoHandler(todoService *service.TodoService) *TodoHandler {
 	return &TodoHandler{
-		Handler:     NewHandler(s),
 		todoService: todoService,
 	}
 }
 
 func (th *TodoHandler) CreateTodo(c echo.Context) error {
 	return Handle(
-		th.Handler,
 		func(c echo.Context, payload *todo.CreateTodoPayload) (*todo.Todo, error) {
 			userID := middleware.GetUserID(c)
 			return th.todoService.CreateTodo(c.Request().Context(), userID, payload)
@@ -41,7 +37,6 @@ func (th *TodoHandler) CreateTodo(c echo.Context) error {
 
 func (th *TodoHandler) GetTodoByID(c echo.Context) error {
 	return Handle(
-		th.Handler,
 		func(c echo.Context, payload *todo.GetTodoByIDQuery) (*todo.PopulatedTodo, error) {
 			userID := middleware.GetUserID(c)
 			return th.todoService.GetTodoByID(c.Request().Context(), userID, payload.ID)
@@ -53,7 +48,6 @@ func (th *TodoHandler) GetTodoByID(c echo.Context) error {
 
 func (th *TodoHandler) GetTodos(c echo.Context) error {
 	return Handle(
-		th.Handler,
 		func(c echo.Context, payload *todo.GetTodosQuery) (*model.PaginatedResponse[todo.PopulatedTodo], error) {
 			userID := middleware.GetUserID(c)
 			return th.todoService.GetTodos(c.Request().Context(), userID, payload)
@@ -65,7 +59,6 @@ func (th *TodoHandler) GetTodos(c echo.Context) error {
 
 func (th *TodoHandler) UpdateTodo(c echo.Context) error {
 	return Handle(
-		th.Handler,
 		func(c echo.Context, payload *todo.UpdateTodoPayload) (*todo.Todo, error) {
 			userID := middleware.GetUserID(c)
 			return th.todoService.UpdateTodo(c.Request().Context(), userID, payload)
@@ -77,7 +70,6 @@ func (th *TodoHandler) UpdateTodo(c echo.Context) error {
 
 func (th *TodoHandler) DeleteTodo(c echo.Context) error {
 	return HandleNoContent(
-		th.Handler,
 		func(c echo.Context, payload *todo.DeleteTodoByIDQuery) error {
 			userID := middleware.GetUserID(c)
 			return th.todoService.DeleteTodo(c.Request().Context(), userID, payload.ID)
@@ -89,7 +81,6 @@ func (th *TodoHandler) DeleteTodo(c echo.Context) error {
 
 func (th *TodoHandler) GetTodoStats(c echo.Context) error {
 	return Handle(
-		th.Handler,
 		func(c echo.Context, payload *todo.GetTodoStatsQuery) (*todo.TodoStats, error) {
 			userID := middleware.GetUserID(c)
 			return th.todoService.GetTodoStats(c.Request().Context(), userID)
@@ -101,7 +92,6 @@ func (th *TodoHandler) GetTodoStats(c echo.Context) error {
 
 func (th *TodoHandler) AddAttachment(c echo.Context) error {
 	return Handle(
-		th.Handler,
 		func(c echo.Context, payload *attachment.UploadTodoAttachmentPayload) (*attachment.Attachment, error) {
 			userID := middleware.GetUserID(c)
 
@@ -144,7 +134,6 @@ type presignedURLResponse struct {
 
 func (th *TodoHandler) GetAttachmentPresignedURL(c echo.Context) error {
 	return Handle(
-		th.Handler,
 		func(c echo.Context, payload *attachment.GetAttachmentPresignedURLPayload) (*presignedURLResponse, error) {
 			userID := middleware.GetUserID(c)
 			url, err := th.todoService.GetAttachmentPresignedURL(c.Request().Context(), userID, payload.TodoID, payload.AttachmentID)
@@ -160,7 +149,6 @@ func (th *TodoHandler) GetAttachmentPresignedURL(c echo.Context) error {
 
 func (th *TodoHandler) DeleteAttachment(c echo.Context) error {
 	return HandleNoContent(
-		th.Handler,
 		func(c echo.Context, payload *attachment.DeleteTodoAttachmentPayload) error {
 			userID := middleware.GetUserID(c)
 			return th.todoService.DeleteTodoAttachment(c.Request().Context(), userID, payload.TodoID, payload.ID)

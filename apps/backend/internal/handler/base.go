@@ -1,14 +1,12 @@
 package handler
 
 import (
-	"time"
+	"reflect"
 
-	"github.com/iancenry/jarvis/internal/middleware"
+	"github.com/iancenry/jarvis/internal/errs"
 	"github.com/iancenry/jarvis/internal/server"
 	"github.com/iancenry/jarvis/internal/validation"
 	"github.com/labstack/echo/v4"
-	"github.com/newrelic/go-agent/v3/integrations/nrpkgerrors"
-	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
 // Handler provides base functionality for all handlers
@@ -27,229 +25,96 @@ type HandlerFunc[Req validation.Validatable, Res any] func(c echo.Context, req R
 // HandlerFuncNoContent represents a typed handler function that processes a request without returning content
 type HandlerFuncNoContent[Req validation.Validatable] func(c echo.Context, req Req) error
 
-// ResponseHandler defines the interface for handling different response types
-type ResponseHandler interface {
-	Handle(c echo.Context, result interface{}) error
-	GetOperation() string
-	AddAttributes(txn *newrelic.Transaction, result interface{})
-}
+type responseWriter[Res any] func(c echo.Context, result Res) error
 
-// JSONResponseHandler handles JSON responses
-type JSONResponseHandler struct {
-	status int
-}
-
-func (h JSONResponseHandler) Handle(c echo.Context, result interface{}) error {
-	return c.JSON(h.status, result)
-}
-
-func (h JSONResponseHandler) GetOperation() string {
-	return "handler"
-}
-
-func (h JSONResponseHandler) AddAttributes(txn *newrelic.Transaction, result interface{}) {
-	// http.status_code is already set by tracing middleware
-}
-
-// NoContentResponseHandler handles no-content responses
-type NoContentResponseHandler struct {
-	status int
-}
-
-func (h NoContentResponseHandler) Handle(c echo.Context, result interface{}) error {
-	return c.NoContent(h.status)
-}
-
-func (h NoContentResponseHandler) GetOperation() string {
-	return "handler_no_content"
-}
-
-func (h NoContentResponseHandler) AddAttributes(txn *newrelic.Transaction, result interface{}) {
-	// http.status_code is already set by tracing middleware
-}
-
-// FileResponseHandler handles file responses
-type FileResponseHandler struct {
-	status      int
-	filename    string
-	contentType string
-}
-
-func (h FileResponseHandler) Handle(c echo.Context, result interface{}) error {
-	data := result.([]byte)
-	c.Response().Header().Set("Content-Disposition", "attachment; filename="+h.filename)
-	return c.Blob(h.status, h.contentType, data)
-}
-
-func (h FileResponseHandler) GetOperation() string {
-	return "handler_file"
-}
-
-func (h FileResponseHandler) AddAttributes(txn *newrelic.Transaction, result interface{}) {
-	if txn != nil {
-		// http.status_code is already set by tracing middleware
-		txn.AddAttribute("file.name", h.filename)
-		txn.AddAttribute("file.content_type", h.contentType)
-		if data, ok := result.([]byte); ok {
-			txn.AddAttribute("file.size_bytes", len(data))
-		}
-	}
-}
-
-// handleRequest is the unified handler function that eliminates code duplication
-func handleRequest[Req validation.Validatable](
+// handleRequest centralizes request construction, binding, validation, and response writing.
+func handleRequest[Req validation.Validatable, Res any](
 	c echo.Context,
-	req Req,
-	handler func(c echo.Context, req Req) (interface{}, error),
-	responseHandler ResponseHandler,
+	prototype Req,
+	handler HandlerFunc[Req, Res],
+	writeResponse responseWriter[Res],
 ) error {
-	start := time.Now()
-	method := c.Request().Method
-	path := c.Path()
-	route := path
-
-	// Get New Relic transaction from context
-	txn := newrelic.FromContext(c.Request().Context())
-	if txn != nil {
-		txn.AddAttribute("handler.name", route)
-		// http.method and http.route are already set by nrecho middleware
-		responseHandler.AddAttributes(txn, nil)
-	}
-
-	// Get context-enhanced logger
-	loggerBuilder := middleware.GetLogger(c).With().
-		Str("operation", responseHandler.GetOperation()).
-		Str("method", method).
-		Str("path", path).
-		Str("route", route)
-	
-	// Add file-specific fields to logger if it's a file handler
-	if fileHandler, ok := responseHandler.(FileResponseHandler); ok {
-		loggerBuilder = loggerBuilder.
-			Str("filename", fileHandler.filename).
-			Str("content_type", fileHandler.contentType)
-	}
-	
-	logger := loggerBuilder.Logger()
-
-	// user.id is already set by tracing middleware
-
-	logger.Info().Msg("handling request")
-
-	// Validation with observability
-	validationStart := time.Now()
-	if err := validation.BindAndValidate(c, req); err != nil {
-		validationDuration := time.Since(validationStart)
-
-		logger.Error().
-			Err(err).
-			Dur("validation_duration", validationDuration).
-			Msg("request validation failed")
-
-		if txn != nil {
-			txn.NoticeError(nrpkgerrors.Wrap(err))
-			txn.AddAttribute("validation.status", "failed")
-			txn.AddAttribute("validation.duration_ms", validationDuration.Milliseconds())
-		}
-		return err
-	}
-
-	validationDuration := time.Since(validationStart)
-	if txn != nil {
-		txn.AddAttribute("validation.status", "success")
-		txn.AddAttribute("validation.duration_ms", validationDuration.Milliseconds())
-	}
-
-	logger.Debug().
-		Dur("validation_duration", validationDuration).
-		Msg("request validation successful")
-
-	// Execute handler with observability
-	handlerStart := time.Now()
-	result, err := handler(c, req)
-	handlerDuration := time.Since(handlerStart)
-
+	req, err := newRequestPayload(prototype)
 	if err != nil {
-		totalDuration := time.Since(start)
-
-		logger.Error().
-			Err(err).
-			Dur("handler_duration", handlerDuration).
-			Dur("total_duration", totalDuration).
-			Msg("handler execution failed")
-
-		if txn != nil {
-			txn.NoticeError(nrpkgerrors.Wrap(err))
-			txn.AddAttribute("handler.status", "error")
-			txn.AddAttribute("handler.duration_ms", handlerDuration.Milliseconds())
-			txn.AddAttribute("total.duration_ms", totalDuration.Milliseconds())
-		}
 		return err
 	}
 
-	totalDuration := time.Since(start)
-
-	// Record success metrics and tracing
-	if txn != nil {
-		txn.AddAttribute("handler.status", "success")
-		txn.AddAttribute("handler.duration_ms", handlerDuration.Milliseconds())
-		txn.AddAttribute("total.duration_ms", totalDuration.Milliseconds())
-		responseHandler.AddAttributes(txn, result)
+	if err := validation.BindAndValidate(c, req); err != nil {
+		return err
 	}
 
-	logger.Info().
-		Dur("handler_duration", handlerDuration).
-		Dur("validation_duration", validationDuration).
-		Dur("total_duration", totalDuration).
-		Msg("request completed successfully")
+	result, err := handler(c, req)
+	if err != nil {
+		return err
+	}
 
-	return responseHandler.Handle(c, result)
+	return writeResponse(c, result)
 }
 
-// Handle wraps a handler with validation, error handling, logging, metrics, and tracing
+func newRequestPayload[Req validation.Validatable](prototype Req) (Req, error) {
+	var zero Req
+	prototypeType := reflect.TypeOf(prototype)
+	if prototypeType == nil {
+		return zero, errs.NewInternalServerError()
+	}
+
+	if prototypeType.Kind() == reflect.Ptr {
+		request, ok := reflect.New(prototypeType.Elem()).Interface().(Req)
+		if !ok {
+			return zero, errs.NewInternalServerError()
+		}
+		return request, nil
+	}
+
+	request, ok := reflect.Zero(prototypeType).Interface().(Req)
+	if !ok {
+		return zero, errs.NewInternalServerError()
+	}
+	return request, nil
+}
+
+// Handle wraps a handler with request construction, validation, and JSON response writing.
 func Handle[Req validation.Validatable, Res any](
-	h Handler,
 	handler HandlerFunc[Req, Res],
 	status int,
-	req Req,
+	prototype Req,
 ) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		return handleRequest(c, req, func(c echo.Context, req Req) (interface{}, error) {
-			return handler(c, req)
-		}, JSONResponseHandler{status: status})
-	}
-}
-
-func HandleFile[Req validation.Validatable](
-	h Handler,
-	handler HandlerFunc[Req, []byte],
-	status int,
-	req Req,
-	filename string,
-	contentType string,
-) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		return handleRequest(c, req, func(c echo.Context, req Req) (interface{}, error) {
-			return handler(c, req)
-		}, FileResponseHandler{
-			status:      status,
-			filename:    filename,
-			contentType: contentType,
+		return handleRequest(c, prototype, handler, func(c echo.Context, result Res) error {
+			return c.JSON(status, result)
 		})
 	}
 }
 
-// HandleNoContent wraps a handler with validation, error handling, logging, metrics, and tracing for endpoints that don't return content
-func HandleNoContent[Req validation.Validatable](
-	h Handler,
-	handler HandlerFuncNoContent[Req],
+func HandleFile[Req validation.Validatable](
+	handler HandlerFunc[Req, []byte],
 	status int,
-	req Req,
+	prototype Req,
+	filename string,
+	contentType string,
 ) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		return handleRequest(c, req, func(c echo.Context, req Req) (interface{}, error) {
-			err := handler(c, req)
-			return nil, err
-		}, NoContentResponseHandler{status: status})
+		return handleRequest(c, prototype, handler, func(c echo.Context, result []byte) error {
+			c.Response().Header().Set("Content-Disposition", "attachment; filename="+filename)
+			return c.Blob(status, contentType, result)
+		})
+	}
+}
+
+// HandleNoContent wraps a handler with request construction, validation, and no-content response writing.
+func HandleNoContent[Req validation.Validatable](
+	handler HandlerFuncNoContent[Req],
+	status int,
+	prototype Req,
+) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		return handleRequest(c, prototype, func(c echo.Context, req Req) (struct{}, error) {
+			if err := handler(c, req); err != nil {
+				return struct{}{}, err
+			}
+			return struct{}{}, nil
+		}, func(c echo.Context, _ struct{}) error {
+			return c.NoContent(status)
+		})
 	}
 }
