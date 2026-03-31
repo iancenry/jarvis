@@ -1,7 +1,9 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
@@ -28,11 +30,10 @@ func (c CustomValidationErrors) Error() string {
 
 func BindAndValidate(c echo.Context, payload Validatable) error {
 	if err := c.Bind(payload); err != nil {
-		message := strings.Split(strings.Split(err.Error(), ",")[1], "message=")[1]
-		return errs.NewBadRequestError(message, false, nil, nil, nil)
+		return errs.NewBadRequestError(extractBindErrorMessage(err), false, nil, nil, nil)
 	}
 
-	if msg, fieldErrors := validateStruct(payload); fieldErrors != nil {
+	if msg, fieldErrors := validateStruct(payload); len(fieldErrors) > 0 {
 		return errs.NewBadRequestError(msg, true, nil, fieldErrors, nil)
 	}
 
@@ -47,17 +48,38 @@ func validateStruct(v Validatable) (string, []errs.FieldError) {
 }
 
 func extractValidationErrors(err error) (string, []errs.FieldError) {
-	var fieldErrors []errs.FieldError
-	validationErrors, ok := err.(validator.ValidationErrors)
-	if !ok {
-		customValidationErrors := err.(CustomValidationErrors)
-		for _, err := range customValidationErrors {
+	if err == nil {
+		return "", nil
+	}
+
+	var validationErrors validator.ValidationErrors
+	if errors.As(err, &validationErrors) {
+		return "Validation failed", buildValidatorFieldErrors(validationErrors)
+	}
+
+	var customValidationErrors CustomValidationErrors
+	if errors.As(err, &customValidationErrors) {
+		fieldErrors := make([]errs.FieldError, 0, len(customValidationErrors))
+		for _, validationErr := range customValidationErrors {
 			fieldErrors = append(fieldErrors, errs.FieldError{
-				Field: err.Field,
-				Error: err.Message,
+				Field: validationErr.Field,
+				Error: validationErr.Message,
 			})
 		}
+
+		return "Validation failed", fieldErrors
 	}
+
+	return "Validation failed", []errs.FieldError{
+		{
+			Field: "request",
+			Error: err.Error(),
+		},
+	}
+}
+
+func buildValidatorFieldErrors(validationErrors validator.ValidationErrors) []errs.FieldError {
+	fieldErrors := make([]errs.FieldError, 0, len(validationErrors))
 
 	for _, err := range validationErrors {
 		field := strings.ToLower(err.Field())
@@ -104,7 +126,51 @@ func extractValidationErrors(err error) (string, []errs.FieldError) {
 		})
 	}
 
-	return "Validation failed", fieldErrors
+	return fieldErrors
+}
+
+func extractBindErrorMessage(err error) string {
+	var echoErr *echo.HTTPError
+	if errors.As(err, &echoErr) {
+		return bindHTTPErrorMessage(echoErr)
+	}
+
+	if err != nil && strings.TrimSpace(err.Error()) != "" {
+		return err.Error()
+	}
+
+	return "invalid request payload"
+}
+
+func bindHTTPErrorMessage(err *echo.HTTPError) string {
+	if err == nil {
+		return "invalid request payload"
+	}
+
+	switch message := err.Message.(type) {
+	case string:
+		if strings.TrimSpace(message) != "" {
+			return message
+		}
+	case error:
+		if strings.TrimSpace(message.Error()) != "" {
+			return message.Error()
+		}
+	case fmt.Stringer:
+		if strings.TrimSpace(message.String()) != "" {
+			return message.String()
+		}
+	}
+
+	if err.Internal != nil && strings.TrimSpace(err.Internal.Error()) != "" {
+		return err.Internal.Error()
+	}
+
+	if err.Code > 0 {
+		return http.StatusText(err.Code)
+	}
+
+	return "invalid request payload"
 }
 
 var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
