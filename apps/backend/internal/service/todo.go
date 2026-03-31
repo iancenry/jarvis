@@ -17,7 +17,6 @@ import (
 	"github.com/iancenry/jarvis/internal/model/todo"
 	"github.com/iancenry/jarvis/internal/repository"
 	"github.com/iancenry/jarvis/internal/server"
-	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 )
 
@@ -61,11 +60,11 @@ func NewTodoService(s *server.Server, todoRepo *repository.TodoRepository, categ
 	}
 }
 
-func (ts *TodoService) CreateTodo(ctx echo.Context, userID string, payload *todo.CreateTodoPayload) (*todo.Todo, error) {
-	logger := middleware.GetLogger(ctx)
+func (ts *TodoService) CreateTodo(ctx context.Context, userID string, payload *todo.CreateTodoPayload) (*todo.Todo, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
 	if payload.ParentTodoID != nil {
-		parentTodo, err := ts.todoRepo.CheckTodoExists(ctx.Request().Context(), userID, *payload.ParentTodoID)
+		parentTodo, err := ts.todoRepo.CheckTodoExists(ctx, userID, *payload.ParentTodoID)
 		if err != nil {
 			logger.Error().Err(err).Msg("parent todo validation failed")
 			return nil, err
@@ -79,21 +78,21 @@ func (ts *TodoService) CreateTodo(ctx echo.Context, userID string, payload *todo
 	}
 
 	if payload.CategoryID != nil {
-		_, err := ts.categoryRepo.GetCategoryByID(ctx.Request().Context(), userID, *payload.CategoryID)
+		_, err := ts.categoryRepo.GetCategoryByID(ctx, userID, *payload.CategoryID)
 		if err != nil {
 			logger.Error().Err(err).Msg("category validation failed")
 			return nil, err
 		}
 	}
 
-	todoItem, err := ts.todoRepo.CreateTodo(ctx.Request().Context(), userID, payload)
+	todoItem, err := ts.todoRepo.CreateTodo(ctx, userID, payload)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to create todo")
 		return nil, err
 	}
 
 	// business event log
-	eventLogger := middleware.GetLogger(ctx)
+	eventLogger := middleware.LoggerFromContext(ctx)
 	eventLogger.Info().
 		Str("event", "todo_created").
 		Str("todo_id", todoItem.ID.String()).
@@ -110,10 +109,10 @@ func (ts *TodoService) CreateTodo(ctx echo.Context, userID string, payload *todo
 	return todoItem, nil
 }
 
-func (ts *TodoService) GetTodoByID(ctx echo.Context, userID string, todoID uuid.UUID) (*todo.PopulatedTodo, error) {
-	logger := middleware.GetLogger(ctx)
+func (ts *TodoService) GetTodoByID(ctx context.Context, userID string, todoID uuid.UUID) (*todo.PopulatedTodo, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
-	todoItem, err := ts.todoRepo.GetTodoByID(ctx.Request().Context(), userID, todoID)
+	todoItem, err := ts.todoRepo.GetTodoByID(ctx, userID, todoID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to get todo by ID")
 		return nil, err
@@ -122,10 +121,10 @@ func (ts *TodoService) GetTodoByID(ctx echo.Context, userID string, todoID uuid.
 	return todoItem, nil
 }
 
-func (ts *TodoService) GetTodos(ctx echo.Context, userID string, query *todo.GetTodosQuery) (*model.PaginatedResponse[todo.PopulatedTodo], error) {
-	logger := middleware.GetLogger(ctx)
+func (ts *TodoService) GetTodos(ctx context.Context, userID string, query *todo.GetTodosQuery) (*model.PaginatedResponse[todo.PopulatedTodo], error) {
+	logger := middleware.LoggerFromContext(ctx)
 
-	todos, err := ts.todoRepo.GetTodos(ctx.Request().Context(), userID, query)
+	todos, err := ts.todoRepo.GetTodos(ctx, userID, query)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to get todos")
 		return nil, err
@@ -134,12 +133,12 @@ func (ts *TodoService) GetTodos(ctx echo.Context, userID string, query *todo.Get
 	return todos, nil
 }
 
-func (ts *TodoService) UpdateTodo(ctx echo.Context, userID string, payload *todo.UpdateTodoPayload) (*todo.Todo, error) {
-	logger := middleware.GetLogger(ctx)
+func (ts *TodoService) UpdateTodo(ctx context.Context, userID string, payload *todo.UpdateTodoPayload) (*todo.Todo, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
 	if payload.ParentTodoID.IsSet() && !payload.ParentTodoID.IsNull() {
 		parentTodoID := payload.ParentTodoID.Value()
-		parentTodo, err := ts.todoRepo.CheckTodoExists(ctx.Request().Context(), userID, parentTodoID)
+		parentTodo, err := ts.todoRepo.CheckTodoExists(ctx, userID, parentTodoID)
 		if err != nil {
 			logger.Error().Err(err).Msg("parent todo validation failed")
 			return nil, err
@@ -162,7 +161,7 @@ func (ts *TodoService) UpdateTodo(ctx echo.Context, userID string, payload *todo
 
 	if payload.CategoryID.IsSet() && !payload.CategoryID.IsNull() {
 		categoryID := payload.CategoryID.Value()
-		_, err := ts.categoryRepo.GetCategoryByID(ctx.Request().Context(), userID, categoryID)
+		_, err := ts.categoryRepo.GetCategoryByID(ctx, userID, categoryID)
 		if err != nil {
 			logger.Error().Err(err).Msg("category validation failed")
 			return nil, err
@@ -170,13 +169,13 @@ func (ts *TodoService) UpdateTodo(ctx echo.Context, userID string, payload *todo
 		logger.Debug().Msg("category validation passed")
 	}
 
-	updatedTodo, err := ts.todoRepo.UpdateTodo(ctx.Request().Context(), userID, payload)
+	updatedTodo, err := ts.todoRepo.UpdateTodo(ctx, userID, payload)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to update todo")
 		return nil, err
 	}
 	// business event log
-	eventLogger := middleware.GetLogger(ctx)
+	eventLogger := middleware.LoggerFromContext(ctx)
 	eventLogger.Info().
 		Str("event", "todo_updated").
 		Str("todo_id", updatedTodo.ID.String()).
@@ -194,17 +193,17 @@ func (ts *TodoService) UpdateTodo(ctx echo.Context, userID string, payload *todo
 	return updatedTodo, nil
 }
 
-func (ts *TodoService) DeleteTodo(ctx echo.Context, userID string, todoID uuid.UUID) error {
-	logger := middleware.GetLogger(ctx)
+func (ts *TodoService) DeleteTodo(ctx context.Context, userID string, todoID uuid.UUID) error {
+	logger := middleware.LoggerFromContext(ctx)
 
-	deletedTodo, err := ts.todoRepo.DeleteTodo(ctx.Request().Context(), userID, todoID)
+	deletedTodo, err := ts.todoRepo.DeleteTodo(ctx, userID, todoID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to delete todo")
 		return err
 	}
 
 	// business event log
-	eventLogger := middleware.GetLogger(ctx)
+	eventLogger := middleware.LoggerFromContext(ctx)
 	eventLogger.Info().
 		Str("event", "todo_deleted").
 		Str("todo_id", deletedTodo.ID.String()).
@@ -214,10 +213,10 @@ func (ts *TodoService) DeleteTodo(ctx echo.Context, userID string, todoID uuid.U
 	return nil
 }
 
-func (ts *TodoService) GetTodoStats(ctx echo.Context, userID string) (*todo.TodoStats, error) {
-	logger := middleware.GetLogger(ctx)
+func (ts *TodoService) GetTodoStats(ctx context.Context, userID string) (*todo.TodoStats, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
-	stats, err := ts.todoRepo.GetTodoStats(ctx.Request().Context(), userID)
+	stats, err := ts.todoRepo.GetTodoStats(ctx, userID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to get todo stats")
 		return nil, err
@@ -226,11 +225,11 @@ func (ts *TodoService) GetTodoStats(ctx echo.Context, userID string) (*todo.Todo
 	return stats, nil
 }
 
-func (ts *TodoService) UploadTodoAttachment(ctx echo.Context, userID string, todoID uuid.UUID, file *multipart.FileHeader) (*attachment.Attachment, error) {
-	logger := middleware.GetLogger(ctx)
+func (ts *TodoService) UploadTodoAttachment(ctx context.Context, userID string, todoID uuid.UUID, file *multipart.FileHeader) (*attachment.Attachment, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
 	// Check if the todo exists and belongs to the user
-	_, err := ts.attachmentRepo.CheckTodoExists(ctx.Request().Context(), userID, todoID)
+	_, err := ts.attachmentRepo.CheckTodoExists(ctx, userID, todoID)
 	if err != nil {
 		logger.Error().Err(err).Msg("todo validation failed")
 		return nil, err
@@ -271,7 +270,7 @@ func (ts *TodoService) UploadTodoAttachment(ctx echo.Context, userID string, tod
 
 	storageKey := buildAttachmentStorageKey(sanitizedFileName)
 	s3Key, err := ts.fileStore.UploadFile(
-		ctx.Request().Context(),
+		ctx,
 		ts.server.Config.AWS.UploadBucket,
 		storageKey,
 		uploadReader,
@@ -283,7 +282,7 @@ func (ts *TodoService) UploadTodoAttachment(ctx echo.Context, userID string, tod
 		return nil, err
 	}
 
-	attachmentItem, err := ts.attachmentRepo.AddAttachment(ctx.Request().Context(), todoID, userID, s3Key, sanitizedFileName, file.Size, contentType)
+	attachmentItem, err := ts.attachmentRepo.AddAttachment(ctx, todoID, userID, s3Key, sanitizedFileName, file.Size, contentType)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to save attachment metadata")
 		return nil, ts.compensateAttachmentUpload(logger, s3Key, err)
@@ -300,10 +299,11 @@ func (ts *TodoService) UploadTodoAttachment(ctx echo.Context, userID string, tod
 
 	return attachmentItem, nil
 }
-func (ts *TodoService) GetTodoAttachments(ctx echo.Context, todoID uuid.UUID) ([]attachment.Attachment, error) {
-	logger := middleware.GetLogger(ctx)
 
-	attachments, err := ts.attachmentRepo.GetAttachmentsByTodoID(ctx.Request().Context(), todoID)
+func (ts *TodoService) GetTodoAttachments(ctx context.Context, todoID uuid.UUID) ([]attachment.Attachment, error) {
+	logger := middleware.LoggerFromContext(ctx)
+
+	attachments, err := ts.attachmentRepo.GetAttachmentsByTodoID(ctx, todoID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to get todo attachments")
 		return nil, err
@@ -312,22 +312,22 @@ func (ts *TodoService) GetTodoAttachments(ctx echo.Context, todoID uuid.UUID) ([
 	return attachments, nil
 }
 
-func (ts *TodoService) DeleteTodoAttachment(ctx echo.Context, userID string, todoID uuid.UUID, attachmentID uuid.UUID) error {
-	logger := middleware.GetLogger(ctx)
+func (ts *TodoService) DeleteTodoAttachment(ctx context.Context, userID string, todoID uuid.UUID, attachmentID uuid.UUID) error {
+	logger := middleware.LoggerFromContext(ctx)
 
-	_, err := ts.attachmentRepo.CheckTodoExists(ctx.Request().Context(), userID, todoID)
+	_, err := ts.attachmentRepo.CheckTodoExists(ctx, userID, todoID)
 	if err != nil {
 		logger.Error().Err(err).Msg("todo validation failed")
 		return err
 	}
 
-	attachmentItem, err := ts.attachmentRepo.GetTodoAttachment(ctx.Request().Context(), todoID, attachmentID)
+	attachmentItem, err := ts.attachmentRepo.GetTodoAttachment(ctx, todoID, attachmentID)
 	if err != nil {
 		logger.Error().Err(err).Msg("attachment validation failed")
 		return err
 	}
 
-	err = ts.attachmentRepo.DeleteAttachment(ctx.Request().Context(), todoID, attachmentID)
+	err = ts.attachmentRepo.DeleteAttachment(ctx, todoID, attachmentID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to delete attachment metadata")
 		return err
@@ -360,22 +360,22 @@ func (ts *TodoService) DeleteTodoAttachment(ctx echo.Context, userID string, tod
 	return nil
 }
 
-func (s *TodoService) GetAttachmentPresignedURL(ctx echo.Context, userID string, todoID uuid.UUID, attachmentID uuid.UUID) (string, error) {
-	logger := middleware.GetLogger(ctx)
+func (s *TodoService) GetAttachmentPresignedURL(ctx context.Context, userID string, todoID uuid.UUID, attachmentID uuid.UUID) (string, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
-	_, err := s.attachmentRepo.CheckTodoExists(ctx.Request().Context(), userID, todoID)
+	_, err := s.attachmentRepo.CheckTodoExists(ctx, userID, todoID)
 	if err != nil {
 		logger.Error().Err(err).Msg("todo validation failed")
 		return "", err
 	}
 
-	attachmentItem, err := s.attachmentRepo.GetTodoAttachment(ctx.Request().Context(), todoID, attachmentID)
+	attachmentItem, err := s.attachmentRepo.GetTodoAttachment(ctx, todoID, attachmentID)
 	if err != nil {
 		logger.Error().Err(err).Msg("attachment validation failed")
 		return "", err
 	}
 
-	presignedURL, err := s.fileStore.CreatePresignedURL(ctx.Request().Context(), s.server.Config.AWS.UploadBucket, attachmentItem.DownloadKey)
+	presignedURL, err := s.fileStore.CreatePresignedURL(ctx, s.server.Config.AWS.UploadBucket, attachmentItem.DownloadKey)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to generate presigned URL")
 		return "", err

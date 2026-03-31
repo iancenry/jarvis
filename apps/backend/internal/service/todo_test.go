@@ -169,7 +169,7 @@ func TestUploadTodoAttachmentSanitizesNameAndUsesUUIDStorageKey(t *testing.T) {
 	service := newTestTodoService(repo, store)
 	fileHeader := newMultipartFileHeader(t, "file", "../Avatar Final!.PNG", uploadedPNG)
 
-	attachmentItem, err := service.UploadTodoAttachment(newTestEchoContext(), "user-1", todoID, fileHeader)
+	attachmentItem, err := service.UploadTodoAttachment(newTestServiceContext(), "user-1", todoID, fileHeader)
 
 	require.NoError(t, err)
 	require.NotNil(t, attachmentItem)
@@ -208,7 +208,7 @@ func TestUploadTodoAttachmentCleansUpS3WhenMetadataWriteFails(t *testing.T) {
 	service := newTestTodoService(repo, store)
 	fileHeader := newMultipartFileHeader(t, "file", "note.txt", []byte("tiny"))
 
-	attachmentItem, err := service.UploadTodoAttachment(newTestEchoContext(), "user-1", todoID, fileHeader)
+	attachmentItem, err := service.UploadTodoAttachment(newTestServiceContext(), "user-1", todoID, fileHeader)
 
 	require.Nil(t, attachmentItem)
 	require.ErrorIs(t, err, metadataErr)
@@ -222,7 +222,7 @@ func TestUploadTodoAttachmentRejectsOversizedFiles(t *testing.T) {
 	service := newTestTodoService(&attachmentRepoStub{}, &attachmentStoreStub{})
 
 	attachmentItem, err := service.UploadTodoAttachment(
-		newTestEchoContext(),
+		newTestServiceContext(),
 		"user-1",
 		uuid.New(),
 		&multipart.FileHeader{
@@ -245,7 +245,7 @@ func TestUploadTodoAttachmentRejectsUnsupportedContentTypes(t *testing.T) {
 	service := newTestTodoService(repo, store)
 	fileHeader := newMultipartFileHeader(t, "file", "payload.bin", []byte{0x00, 0x01, 0x02, 0x03})
 
-	attachmentItem, err := service.UploadTodoAttachment(newTestEchoContext(), "user-1", uuid.New(), fileHeader)
+	attachmentItem, err := service.UploadTodoAttachment(newTestServiceContext(), "user-1", uuid.New(), fileHeader)
 
 	require.Nil(t, attachmentItem)
 	require.Error(t, err)
@@ -293,7 +293,7 @@ func TestDeleteTodoAttachmentRestoresMetadataWhenS3DeleteFails(t *testing.T) {
 
 	service := newTestTodoService(repo, store)
 
-	err := service.DeleteTodoAttachment(newTestEchoContext(), "user-1", todoID, attachmentID)
+	err := service.DeleteTodoAttachment(newTestServiceContext(), "user-1", todoID, attachmentID)
 
 	require.ErrorIs(t, err, s3Err)
 	assert.Equal(t, 1, repo.deleteAttachmentCalls)
@@ -333,7 +333,7 @@ func TestDeleteTodoAttachmentReturnsJoinedErrorWhenRestoreFails(t *testing.T) {
 
 	service := newTestTodoService(repo, store)
 
-	err := service.DeleteTodoAttachment(newTestEchoContext(), "user-1", todoID, attachmentID)
+	err := service.DeleteTodoAttachment(newTestServiceContext(), "user-1", todoID, attachmentID)
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, s3Err)
@@ -356,16 +356,9 @@ func newTestTodoService(repo todoAttachmentRepository, store attachmentFileStore
 	}
 }
 
-func newTestEchoContext() echo.Context {
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/", nil)
-	rec := httptest.NewRecorder()
-	ctx := e.NewContext(req, rec)
-
+func newTestServiceContext() context.Context {
 	logger := zerolog.Nop()
-	ctx.Set(middleware.LoggerKey, &logger)
-
-	return ctx
+	return context.WithValue(context.Background(), middleware.LoggerKey, &logger)
 }
 
 func newMultipartFileHeader(t *testing.T, fieldName string, fileName string, content []byte) *multipart.FileHeader {

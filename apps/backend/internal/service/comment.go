@@ -1,12 +1,13 @@
 package service
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 	"github.com/iancenry/jarvis/internal/middleware"
 	"github.com/iancenry/jarvis/internal/model/comment"
 	"github.com/iancenry/jarvis/internal/repository"
 	"github.com/iancenry/jarvis/internal/server"
-	"github.com/labstack/echo/v4"
 )
 
 type CommentService struct {
@@ -23,17 +24,17 @@ func NewCommentService(s *server.Server, commentRepo *repository.CommentReposito
 	}
 }
 
-func (cs *CommentService) CreateComment(ctx echo.Context, userID string, todoID uuid.UUID, payload *comment.CreateCommentPayload) (*comment.Comment, error) {
-	logger := middleware.GetLogger(ctx)
+func (cs *CommentService) CreateComment(ctx context.Context, userID string, todoID uuid.UUID, payload *comment.CreateCommentPayload) (*comment.Comment, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
-	commentItem, err := cs.commentRepo.CreateComment(ctx.Request().Context(), userID, todoID, payload)
+	commentItem, err := cs.commentRepo.CreateComment(ctx, userID, todoID, payload)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to create comment")
 		return nil, err
 	}
 
 	// business event log
-	eventLogger := middleware.GetLogger(ctx)
+	eventLogger := middleware.LoggerFromContext(ctx)
 	eventLogger.Info().
 		Str("event", "comment_created").
 		Str("comment_id", commentItem.ID.String()).
@@ -43,17 +44,17 @@ func (cs *CommentService) CreateComment(ctx echo.Context, userID string, todoID 
 	return commentItem, nil
 }
 
-func (cs *CommentService) GetCommentsByTodoID(ctx echo.Context, userID string, todoID uuid.UUID) ([]comment.Comment, error) {
-	logger := middleware.GetLogger(ctx)
+func (cs *CommentService) GetCommentsByTodoID(ctx context.Context, userID string, todoID uuid.UUID) ([]comment.Comment, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
 	// Validate the associated todo exists and belongs to the user
-	_, err := cs.todoRepo.CheckTodoExists(ctx.Request().Context(), userID, todoID)
+	_, err := cs.todoRepo.CheckTodoExists(ctx, userID, todoID)
 	if err != nil {
 		logger.Error().Err(err).Msg("todo validation failed for fetching comments")
 		return nil, err
 	}
 
-	comments, err := cs.commentRepo.GetCommentsByTodoID(ctx.Request().Context(), userID, todoID)
+	comments, err := cs.commentRepo.GetCommentsByTodoID(ctx, userID, todoID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to fetch comments")
 		return nil, err
@@ -62,17 +63,17 @@ func (cs *CommentService) GetCommentsByTodoID(ctx echo.Context, userID string, t
 	return comments, nil
 }
 
-func (cs *CommentService) UpdateComment(ctx echo.Context, userID string, commentID uuid.UUID, payload *comment.UpdateCommentPayload) (*comment.Comment, error) {
-	logger := middleware.GetLogger(ctx)
+func (cs *CommentService) UpdateComment(ctx context.Context, userID string, commentID uuid.UUID, payload *comment.UpdateCommentPayload) (*comment.Comment, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
-	updatedComment, err := cs.commentRepo.UpdateComment(ctx.Request().Context(), userID, payload)
+	updatedComment, err := cs.commentRepo.UpdateComment(ctx, userID, payload)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to update comment")
 		return nil, err
 	}
 
 	// business event log
-	eventLogger := middleware.GetLogger(ctx)
+	eventLogger := middleware.LoggerFromContext(ctx)
 	eventLogger.Info().
 		Str("event", "comment_updated").
 		Str("comment_id", commentID.String()).
@@ -81,17 +82,17 @@ func (cs *CommentService) UpdateComment(ctx echo.Context, userID string, comment
 	return updatedComment, nil
 }
 
-func (cs *CommentService) DeleteComment(ctx echo.Context, userID string, commentID uuid.UUID) error {
-	logger := middleware.GetLogger(ctx)
+func (cs *CommentService) DeleteComment(ctx context.Context, userID string, commentID uuid.UUID) error {
+	logger := middleware.LoggerFromContext(ctx)
 
-	deletedComment, err := cs.commentRepo.DeleteComment(ctx.Request().Context(), userID, commentID)
+	deletedComment, err := cs.commentRepo.DeleteComment(ctx, userID, commentID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to delete comment")
 		return err
 	}
 
 	// business event log
-	eventLogger := middleware.GetLogger(ctx)
+	eventLogger := middleware.LoggerFromContext(ctx)
 	eventLogger.Info().
 		Str("event", "comment_deleted").
 		Str("comment_id", deletedComment.ID.String()).

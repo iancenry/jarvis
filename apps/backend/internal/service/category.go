@@ -1,13 +1,14 @@
 package service
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 	"github.com/iancenry/jarvis/internal/middleware"
 	"github.com/iancenry/jarvis/internal/model"
 	"github.com/iancenry/jarvis/internal/model/category"
 	"github.com/iancenry/jarvis/internal/repository"
 	"github.com/iancenry/jarvis/internal/server"
-	"github.com/labstack/echo/v4"
 )
 
 type CategoryService struct {
@@ -22,17 +23,17 @@ func NewCategoryService(s *server.Server, categoryRepo *repository.CategoryRepos
 	}
 }
 
-func (cs *CategoryService) CreateCategory(ctx echo.Context, userID string, payload *category.CreateCategoryPayload) (*category.Category, error) {
-	logger := middleware.GetLogger(ctx)
+func (cs *CategoryService) CreateCategory(ctx context.Context, userID string, payload *category.CreateCategoryPayload) (*category.Category, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
-	categoryItem, err := cs.categoryRepo.CreateCategory(ctx.Request().Context(), userID, payload)
+	categoryItem, err := cs.categoryRepo.CreateCategory(ctx, userID, payload)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to create category")
 		return nil, err
 	}
 
 	// business event log
-	eventLogger := middleware.GetLogger(ctx)
+	eventLogger := middleware.LoggerFromContext(ctx)
 	eventLogger.Info().
 		Str("event", "category_created").
 		Str("category_id", categoryItem.ID.String()).
@@ -41,10 +42,10 @@ func (cs *CategoryService) CreateCategory(ctx echo.Context, userID string, paylo
 	return categoryItem, nil
 }
 
-func (cs *CategoryService) GetCategories(ctx echo.Context, userID string, query *category.GetCategoriesQuery) (*model.PaginatedResponse[category.Category], error) {
-	logger := middleware.GetLogger(ctx)
+func (cs *CategoryService) GetCategories(ctx context.Context, userID string, query *category.GetCategoriesQuery) (*model.PaginatedResponse[category.Category], error) {
+	logger := middleware.LoggerFromContext(ctx)
 
-	categories, err := cs.categoryRepo.GetCategories(ctx.Request().Context(), userID, query)
+	categories, err := cs.categoryRepo.GetCategories(ctx, userID, query)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to get categories")
 		return nil, err
@@ -53,10 +54,10 @@ func (cs *CategoryService) GetCategories(ctx echo.Context, userID string, query 
 	return categories, nil
 }
 
-func (cs *CategoryService) GetCategoryByID(ctx echo.Context, userID string, categoryID uuid.UUID) (*category.Category, error) {
-	logger := middleware.GetLogger(ctx)
+func (cs *CategoryService) GetCategoryByID(ctx context.Context, userID string, categoryID uuid.UUID) (*category.Category, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
-	categoryItem, err := cs.categoryRepo.GetCategoryByID(ctx.Request().Context(), userID, categoryID)
+	categoryItem, err := cs.categoryRepo.GetCategoryByID(ctx, userID, categoryID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to get category by id")
 		return nil, err
@@ -65,17 +66,17 @@ func (cs *CategoryService) GetCategoryByID(ctx echo.Context, userID string, cate
 	return categoryItem, nil
 }
 
-func (cs *CategoryService) UpdateCategory(ctx echo.Context, userID string, categoryID uuid.UUID, payload *category.UpdateCategoryPayload) (*category.Category, error) {
-	logger := middleware.GetLogger(ctx)
+func (cs *CategoryService) UpdateCategory(ctx context.Context, userID string, categoryID uuid.UUID, payload *category.UpdateCategoryPayload) (*category.Category, error) {
+	logger := middleware.LoggerFromContext(ctx)
 
-	categoryItem, err := cs.categoryRepo.UpdateCategory(ctx.Request().Context(), userID, categoryID, payload)
+	categoryItem, err := cs.categoryRepo.UpdateCategory(ctx, userID, categoryID, payload)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to update category")
 		return nil, err
 	}
 
 	// business event log
-	eventLogger := middleware.GetLogger(ctx)
+	eventLogger := middleware.LoggerFromContext(ctx)
 	eventLogger.Info().
 		Str("event", "category_updated").
 		Str("category_id", categoryItem.ID.String()).
@@ -84,17 +85,17 @@ func (cs *CategoryService) UpdateCategory(ctx echo.Context, userID string, categ
 	return categoryItem, nil
 }
 
-func (cs *CategoryService) DeleteCategory(ctx echo.Context, userID string, categoryID uuid.UUID) error {
-	logger := middleware.GetLogger(ctx)
+func (cs *CategoryService) DeleteCategory(ctx context.Context, userID string, categoryID uuid.UUID) error {
+	logger := middleware.LoggerFromContext(ctx)
 
-	deletedCategory, err := cs.categoryRepo.DeleteCategory(ctx.Request().Context(), userID, categoryID)
+	deletedCategory, err := cs.categoryRepo.DeleteCategory(ctx, userID, categoryID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to delete category")
 		return err
 	}
 
 	// business event log
-	eventLogger := middleware.GetLogger(ctx)
+	eventLogger := middleware.LoggerFromContext(ctx)
 	eventLogger.Info().
 		Str("event", "category_deleted").
 		Str("category_id", deletedCategory.ID.String()).

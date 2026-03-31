@@ -32,7 +32,7 @@ func (th *TodoHandler) CreateTodo(c echo.Context) error {
 		th.Handler,
 		func(c echo.Context, payload *todo.CreateTodoPayload) (*todo.Todo, error) {
 			userID := middleware.GetUserID(c)
-			return th.todoService.CreateTodo(c, userID, payload)
+			return th.todoService.CreateTodo(c.Request().Context(), userID, payload)
 		},
 		http.StatusCreated,
 		&todo.CreateTodoPayload{},
@@ -44,7 +44,7 @@ func (th *TodoHandler) GetTodoByID(c echo.Context) error {
 		th.Handler,
 		func(c echo.Context, payload *todo.GetTodoByIDQuery) (*todo.PopulatedTodo, error) {
 			userID := middleware.GetUserID(c)
-			return th.todoService.GetTodoByID(c, userID, payload.ID)
+			return th.todoService.GetTodoByID(c.Request().Context(), userID, payload.ID)
 		},
 		http.StatusOK,
 		&todo.GetTodoByIDQuery{},
@@ -56,7 +56,7 @@ func (th *TodoHandler) GetTodos(c echo.Context) error {
 		th.Handler,
 		func(c echo.Context, payload *todo.GetTodosQuery) (*model.PaginatedResponse[todo.PopulatedTodo], error) {
 			userID := middleware.GetUserID(c)
-			return th.todoService.GetTodos(c, userID, payload)
+			return th.todoService.GetTodos(c.Request().Context(), userID, payload)
 		},
 		http.StatusOK,
 		&todo.GetTodosQuery{},
@@ -68,7 +68,7 @@ func (th *TodoHandler) UpdateTodo(c echo.Context) error {
 		th.Handler,
 		func(c echo.Context, payload *todo.UpdateTodoPayload) (*todo.Todo, error) {
 			userID := middleware.GetUserID(c)
-			return th.todoService.UpdateTodo(c, userID, payload)
+			return th.todoService.UpdateTodo(c.Request().Context(), userID, payload)
 		},
 		http.StatusOK,
 		&todo.UpdateTodoPayload{},
@@ -80,7 +80,7 @@ func (th *TodoHandler) DeleteTodo(c echo.Context) error {
 		th.Handler,
 		func(c echo.Context, payload *todo.DeleteTodoByIDQuery) error {
 			userID := middleware.GetUserID(c)
-			return th.todoService.DeleteTodo(c, userID, payload.ID)
+			return th.todoService.DeleteTodo(c.Request().Context(), userID, payload.ID)
 		},
 		http.StatusNoContent,
 		&todo.DeleteTodoByIDQuery{},
@@ -92,7 +92,7 @@ func (th *TodoHandler) GetTodoStats(c echo.Context) error {
 		th.Handler,
 		func(c echo.Context, payload *todo.GetTodoStatsQuery) (*todo.TodoStats, error) {
 			userID := middleware.GetUserID(c)
-			return th.todoService.GetTodoStats(c, userID)
+			return th.todoService.GetTodoStats(c.Request().Context(), userID)
 		},
 		http.StatusOK,
 		&todo.GetTodoStatsQuery{},
@@ -131,7 +131,7 @@ func (th *TodoHandler) AddAttachment(c echo.Context) error {
 				return nil, errs.NewBadRequestError("multiple files found in multipart form, only one file is allowed", false, nil, nil, nil)
 			}
 
-			return th.todoService.UploadTodoAttachment(c, userID, payload.TodoID, files[0])
+			return th.todoService.UploadTodoAttachment(c.Request().Context(), userID, payload.TodoID, files[0])
 		},
 		http.StatusCreated,
 		&attachment.UploadTodoAttachmentPayload{},
@@ -147,7 +147,7 @@ func (th *TodoHandler) GetAttachmentPresignedURL(c echo.Context) error {
 		th.Handler,
 		func(c echo.Context, payload *attachment.GetAttachmentPresignedURLPayload) (*presignedURLResponse, error) {
 			userID := middleware.GetUserID(c)
-			url, err := th.todoService.GetAttachmentPresignedURL(c, userID, payload.TodoID, payload.AttachmentID)
+			url, err := th.todoService.GetAttachmentPresignedURL(c.Request().Context(), userID, payload.TodoID, payload.AttachmentID)
 			if err != nil {
 				return nil, err
 			}
@@ -163,7 +163,7 @@ func (th *TodoHandler) DeleteAttachment(c echo.Context) error {
 		th.Handler,
 		func(c echo.Context, payload *attachment.DeleteTodoAttachmentPayload) error {
 			userID := middleware.GetUserID(c)
-			return th.todoService.DeleteTodoAttachment(c, userID, payload.TodoID, payload.ID)
+			return th.todoService.DeleteTodoAttachment(c.Request().Context(), userID, payload.TodoID, payload.ID)
 		},
 		http.StatusNoContent,
 		&attachment.DeleteTodoAttachmentPayload{},

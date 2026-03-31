@@ -91,6 +91,17 @@ func GetLogger(c echo.Context) *zerolog.Logger {
 	if logger, ok := c.Get(LoggerKey).(*zerolog.Logger); ok {
 		return logger
 	}
+
+	return LoggerFromContext(c.Request().Context())
+}
+
+func LoggerFromContext(ctx context.Context) *zerolog.Logger {
+	if ctx != nil {
+		if logger, ok := ctx.Value(LoggerKey).(*zerolog.Logger); ok {
+			return logger
+		}
+	}
+
 	// Fallback to a basic logger if not found
 	logger := zerolog.Nop()
 	return &logger

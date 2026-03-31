@@ -28,7 +28,7 @@ func (h *CategoryHandler) CreateCategory(c echo.Context) error {
 		h.Handler,
 		func(c echo.Context, payload *category.CreateCategoryPayload) (*category.Category, error) {
 			userID := middleware.GetUserID(c)
-			return h.categoryService.CreateCategory(c, userID, payload)
+			return h.categoryService.CreateCategory(c.Request().Context(), userID, payload)
 		},
 		http.StatusCreated,
 		&category.CreateCategoryPayload{},
@@ -42,7 +42,7 @@ func (h *CategoryHandler) GetCategories(c echo.Context) error {
 			*model.PaginatedResponse[category.Category], error,
 		) {
 			userID := middleware.GetUserID(c)
-			return h.categoryService.GetCategories(c, userID, query)
+			return h.categoryService.GetCategories(c.Request().Context(), userID, query)
 		},
 		http.StatusOK,
 		&category.GetCategoriesQuery{},
@@ -54,7 +54,7 @@ func (h *CategoryHandler) UpdateCategory(c echo.Context) error {
 		h.Handler,
 		func(c echo.Context, payload *category.UpdateCategoryPayload) (*category.Category, error) {
 			userID := middleware.GetUserID(c)
-			return h.categoryService.UpdateCategory(c, userID, payload.ID, payload)
+			return h.categoryService.UpdateCategory(c.Request().Context(), userID, payload.ID, payload)
 		},
 		http.StatusOK,
 		&category.UpdateCategoryPayload{},
@@ -66,7 +66,7 @@ func (h *CategoryHandler) DeleteCategory(c echo.Context) error {
 		h.Handler,
 		func(c echo.Context, payload *category.DeleteCategoryByIDQuery) error {
 			userID := middleware.GetUserID(c)
-			return h.categoryService.DeleteCategory(c, userID, payload.ID)
+			return h.categoryService.DeleteCategory(c.Request().Context(), userID, payload.ID)
 		},
 		http.StatusNoContent,
 		&category.DeleteCategoryByIDQuery{},
