@@ -18,7 +18,7 @@ import (
 
 // TodoRepository provides methods to interact with the todo data store
 // embedding the server struct allows us to access shared resources like the database connection pool
-type TodoRepository struct{
+type TodoRepository struct {
 	server *server.Server
 }
 
@@ -58,7 +58,6 @@ func (r *TodoRepository) CreateTodo(ctx context.Context, userID string, payload 
 	if payload.Priority != nil {
 		priority = *payload.Priority
 	}
-
 
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"user_id":        userID,
@@ -139,7 +138,6 @@ func (r *TodoRepository) GetTodoByID(ctx context.Context, userID string, todoID 
 
 	return &todoItem, nil
 
-	
 }
 
 func (r *TodoRepository) CheckTodoExists(ctx context.Context, userID string, todoID uuid.UUID) (*todo.Todo, error) {
@@ -149,7 +147,7 @@ func (r *TodoRepository) CheckTodoExists(ctx context.Context, userID string, tod
 	`
 
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
-		"id": todoID,
+		"id":      todoID,
 		"user_id": userID,
 	})
 	if err != nil {
@@ -229,7 +227,7 @@ func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *tod
 	if query.ParentTodoID != nil {
 		conditions = append(conditions, "t.parent_todo_id = @parent_todo_id")
 		args["parent_todo_id"] = *query.ParentTodoID
-	}else {
+	} else {
 		conditions = append(conditions, "t.parent_todo_id IS NULL")
 	}
 
@@ -275,9 +273,9 @@ func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *tod
 		return nil, fmt.Errorf("failed to execute count todos query for user_id=%s: %w", userID, err)
 	}
 
-	// group by is necessary to avoid duplicates when joining with categories and comments - 
+	// group by is necessary to avoid duplicates when joining with categories and comments -
 	// otherwise we get a row for each comment which causes the same todo to be duplicated in the results
-	// also necessary when performing aggregation 
+	// also necessary when performing aggregation
 	stmt += " GROUP BY t.id, c.id"
 	if query.Sort != nil {
 		stmt := " ORDER BY t." + *query.Sort
@@ -286,7 +284,7 @@ func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *tod
 		} else {
 			stmt += " ASC"
 		}
-	}else {
+	} else {
 		stmt += " ORDER BY t.created_at DESC"
 	}
 
@@ -304,12 +302,11 @@ func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *tod
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return &model.PaginatedResponse[todo.PopulatedTodo]{
-				Data : []todo.PopulatedTodo{},
-				Page: *query.Page,
-				Limit: *query.Limit,
-				Total: 0,
+				Data:       []todo.PopulatedTodo{},
+				Page:       *query.Page,
+				Limit:      *query.Limit,
+				Total:      0,
 				TotalPages: 0,
-
 			}, nil
 		}
 		return nil, fmt.Errorf("failed to collect todos for user_id=%s: %w", userID, err)
@@ -327,7 +324,7 @@ func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *tod
 func (r *TodoRepository) UpdateTodo(ctx context.Context, userID string, payload *todo.UpdateTodoPayload) (*todo.Todo, error) {
 	stmt := `UPDATE todos SET `
 	args := pgx.NamedArgs{
-		"id": payload.ID,
+		"id":      payload.ID,
 		"user_id": userID,
 	}
 	setClauses := []string{}
@@ -396,7 +393,7 @@ func (r *TodoRepository) DeleteTodo(ctx context.Context, userID string, todoID u
 	stmt := `DELETE FROM todos WHERE id = @id AND user_id = @user_id`
 
 	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
-		"id": todoID,
+		"id":      todoID,
 		"user_id": userID,
 	})
 	if err != nil {
@@ -431,7 +428,7 @@ func (r *TodoRepository) GetTodoStats(ctx context.Context, userID string) (*todo
 	}
 
 	stats, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[todo.TodoStats])
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect todo stats for user_id=%s: %w", userID, err)
 	}
@@ -461,12 +458,12 @@ func (r *TodoRepository) AddAttachment(ctx context.Context, todoID uuid.UUID, us
 	`
 
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
-		"todo_id": todoID,
-		"name": fileName,
-		"uploaded_by": userID,
+		"todo_id":      todoID,
+		"name":         fileName,
+		"uploaded_by":  userID,
 		"download_key": s3Key,
-		"file_size": fileSize,
-		"mime_type": mimeType,
+		"file_size":    fileSize,
+		"mime_type":    mimeType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute add attachment query for todo_id=%s filename=%s: %w", todoID, fileName, err)
@@ -475,7 +472,7 @@ func (r *TodoRepository) AddAttachment(ctx context.Context, todoID uuid.UUID, us
 	attachmentItem, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[attachment.Attachment])
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to collect added attachment for todo_id=%s filename=%s: %w", todoID, fileName, err)		
+		return nil, fmt.Errorf("failed to collect added attachment for todo_id=%s filename=%s: %w", todoID, fileName, err)
 	}
 
 	return &attachmentItem, nil
@@ -488,7 +485,7 @@ func (r *TodoRepository) GetTodoAttachment(ctx context.Context, todoID uuid.UUID
 	`
 
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
-		"id": attachmentID,
+		"id":      attachmentID,
 		"todo_id": todoID,
 	})
 	if err != nil {
@@ -538,7 +535,7 @@ func (r *TodoRepository) DeleteAttachment(ctx context.Context, todoID uuid.UUID,
 	stmt := `DELETE FROM attachments WHERE id = @id AND todo_id = @todo_id`
 
 	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
-		"id": attachmentID,
+		"id":      attachmentID,
 		"todo_id": todoID,
 	})
 	if err != nil {
@@ -556,10 +553,10 @@ func (r *TodoRepository) DeleteAttachment(ctx context.Context, todoID uuid.UUID,
 // CRON
 func (r *TodoRepository) GetTodosDueInHours(ctx context.Context, hours, limit int) ([]todo.Todo, error) {
 	stmt := `
-		select t.*, t.user_id from todos t
+		select t.* from todos t
 		where t.due_date is not null
 		and t.due_date >= NOW()
-		and t.due_date <= NOW() + INTERVAL '@hours hours'
+		and t.due_date <= NOW() + (@hours * INTERVAL '1 hour')
 		and t.status not in ('completed', 'archived')
 		order by t.due_date asc
 		limit @limit
@@ -583,12 +580,12 @@ func (r *TodoRepository) GetTodosDueInHours(ctx context.Context, hours, limit in
 	}
 
 	return todos, nil
-	
+
 }
 
 func (r *TodoRepository) GetOverdueTodos(ctx context.Context, limit int) ([]todo.Todo, error) {
 	stmt := `
-		select t.*, t.user_id from todos t
+		select t.* from todos t
 		where t.due_date is not null
 		and t.due_date < NOW()
 		and t.status not in ('completed', 'archived')
@@ -613,7 +610,7 @@ func (r *TodoRepository) GetOverdueTodos(ctx context.Context, limit int) ([]todo
 	}
 
 	return todos, nil
-	
+
 }
 
 func (r *TodoRepository) GetCompletedTodosOlderThan(ctx context.Context, cutoffDate time.Time, limit int) ([]todo.Todo, error) {
@@ -654,8 +651,8 @@ func (r *TodoRepository) GetCompletedTodosOlderThan(ctx context.Context, cutoffD
 func (r *TodoRepository) ArchiveTodos(ctx context.Context, todoIDs []uuid.UUID) error {
 	stmt := `
 		UPDATE todos
-		SET status = 'archived
-		WHERE id = ANY(@ids::uuid[]) AND status != 'archived'
+		SET status = 'archived'
+		WHERE id = ANY(@ids) AND status != 'archived'
 	`
 
 	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
@@ -665,7 +662,7 @@ func (r *TodoRepository) ArchiveTodos(ctx context.Context, todoIDs []uuid.UUID) 
 		return fmt.Errorf("failed to execute archive todos query: %w", err)
 	}
 
-	if(result.RowsAffected() != int64(len(todoIDs))) {
+	if result.RowsAffected() != int64(len(todoIDs)) {
 		return fmt.Errorf("not all todos were archived, expected to archive %d but archived %d", len(todoIDs), result.RowsAffected())
 	}
 
@@ -685,7 +682,7 @@ func (r *TodoRepository) GetWeeklyStatsForUsers(ctx context.Context, startDate, 
 	`
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"start_date": startDate,
-		"end_date": endDate,
+		"end_date":   endDate,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute get weekly stats for users query: %w", err)
@@ -700,10 +697,10 @@ func (r *TodoRepository) GetWeeklyStatsForUsers(ctx context.Context, startDate, 
 		return nil, fmt.Errorf("failed to collect weekly stats for users: %w", err)
 	}
 
-	return stats, nil	
+	return stats, nil
 }
 
-func  (r *TodoRepository) GetCompletedTodosForUser(ctx context.Context, userID string, startDate, endDate time.Time) ([]todo.PopulatedTodo, error) {
+func (r *TodoRepository) GetCompletedTodosForUser(ctx context.Context, userID string, startDate, endDate time.Time) ([]todo.PopulatedTodo, error) {
 	stmt := `
 		SELECT t.*,
 			CASE

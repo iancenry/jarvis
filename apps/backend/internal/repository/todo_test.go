@@ -476,6 +476,134 @@ func TestTodoRepository_GetTodoStats(t *testing.T) {
 	})
 }
 
+func TestTodoRepository_GetTodosDueInHours(t *testing.T) {
+	_, testServer, cleanup := testing_pkg.SetupTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	todoRepo := repository.NewTodoRepository(testServer)
+	userID := uuid.New().String()
+
+	dueSoon := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Due Soon", time.Now().Add(1*time.Hour))
+	dueSoonLater := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Due Soon Later", time.Now().Add(2*time.Hour))
+	_ = createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Due Later", time.Now().Add(24*time.Hour))
+	_ = createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Already Overdue", time.Now().Add(-2*time.Hour))
+
+	completedTodo := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Completed Soon", time.Now().Add(90*time.Minute))
+	setTodoStatus(t, ctx, todoRepo, userID, completedTodo.ID, todo.StatusCompleted)
+
+	archivedTodo := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Archived Soon", time.Now().Add(75*time.Minute))
+	setTodoStatus(t, ctx, todoRepo, userID, archivedTodo.ID, todo.StatusArchived)
+
+	result, err := todoRepo.GetTodosDueInHours(ctx, 3, 10)
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+
+	assert.Equal(t, dueSoon.ID, result[0].ID)
+	assert.Equal(t, dueSoonLater.ID, result[1].ID)
+	assert.Equal(t, "Due Soon", result[0].Title)
+	assert.Equal(t, "Due Soon Later", result[1].Title)
+}
+
+func TestTodoRepository_GetOverdueTodos(t *testing.T) {
+	_, testServer, cleanup := testing_pkg.SetupTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	todoRepo := repository.NewTodoRepository(testServer)
+	userID := uuid.New().String()
+
+	oldestOverdue := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Oldest Overdue", time.Now().Add(-4*time.Hour))
+	newerOverdue := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Newer Overdue", time.Now().Add(-2*time.Hour))
+	_ = createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Future Todo", time.Now().Add(4*time.Hour))
+
+	completedOverdue := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Completed Overdue", time.Now().Add(-90*time.Minute))
+	setTodoStatus(t, ctx, todoRepo, userID, completedOverdue.ID, todo.StatusCompleted)
+
+	archivedOverdue := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Archived Overdue", time.Now().Add(-75*time.Minute))
+	setTodoStatus(t, ctx, todoRepo, userID, archivedOverdue.ID, todo.StatusArchived)
+
+	result, err := todoRepo.GetOverdueTodos(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+
+	assert.Equal(t, oldestOverdue.ID, result[0].ID)
+	assert.Equal(t, newerOverdue.ID, result[1].ID)
+	assert.Equal(t, "Oldest Overdue", result[0].Title)
+	assert.Equal(t, "Newer Overdue", result[1].Title)
+}
+
+func TestTodoRepository_AutoArchiveQueries(t *testing.T) {
+	_, testServer, cleanup := testing_pkg.SetupTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	todoRepo := repository.NewTodoRepository(testServer)
+	userID := uuid.New().String()
+
+	oldCompletedA := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Old Completed A", time.Now().Add(-48*time.Hour))
+	oldCompletedB := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Old Completed B", time.Now().Add(-72*time.Hour))
+	recentCompleted := createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Recent Completed", time.Now().Add(-24*time.Hour))
+	_ = createTestTodoWithDueDate(t, ctx, todoRepo, userID, "Still Active", time.Now().Add(-96*time.Hour))
+
+	setTodoStatus(t, ctx, todoRepo, userID, oldCompletedA.ID, todo.StatusCompleted)
+	setTodoStatus(t, ctx, todoRepo, userID, oldCompletedB.ID, todo.StatusCompleted)
+	setTodoStatus(t, ctx, todoRepo, userID, recentCompleted.ID, todo.StatusCompleted)
+
+	oldCompletionTime := time.Now().AddDate(0, 0, -45)
+	recentCompletionTime := time.Now().AddDate(0, 0, -5)
+
+	_, err := testServer.DB.Pool.Exec(
+		ctx,
+		"UPDATE todos SET completed_at = $1 WHERE id = $2",
+		oldCompletionTime,
+		oldCompletedA.ID,
+	)
+	require.NoError(t, err)
+
+	_, err = testServer.DB.Pool.Exec(
+		ctx,
+		"UPDATE todos SET completed_at = $1 WHERE id = $2",
+		oldCompletionTime.Add(-time.Hour),
+		oldCompletedB.ID,
+	)
+	require.NoError(t, err)
+
+	_, err = testServer.DB.Pool.Exec(
+		ctx,
+		"UPDATE todos SET completed_at = $1 WHERE id = $2",
+		recentCompletionTime,
+		recentCompleted.ID,
+	)
+	require.NoError(t, err)
+
+	cutoffDate := time.Now().AddDate(0, 0, -30)
+
+	eligibleTodos, err := todoRepo.GetCompletedTodosOlderThan(ctx, cutoffDate, 10)
+	require.NoError(t, err)
+	require.Len(t, eligibleTodos, 2)
+	assert.ElementsMatch(t, []uuid.UUID{oldCompletedA.ID, oldCompletedB.ID}, []uuid.UUID{eligibleTodos[0].ID, eligibleTodos[1].ID})
+
+	err = todoRepo.ArchiveTodos(ctx, []uuid.UUID{oldCompletedA.ID, oldCompletedB.ID})
+	require.NoError(t, err)
+
+	archivedA, err := todoRepo.CheckTodoExists(ctx, userID, oldCompletedA.ID)
+	require.NoError(t, err)
+	assert.Equal(t, todo.StatusArchived, archivedA.Status)
+
+	archivedB, err := todoRepo.CheckTodoExists(ctx, userID, oldCompletedB.ID)
+	require.NoError(t, err)
+	assert.Equal(t, todo.StatusArchived, archivedB.Status)
+
+	stillCompleted, err := todoRepo.CheckTodoExists(ctx, userID, recentCompleted.ID)
+	require.NoError(t, err)
+	assert.Equal(t, todo.StatusCompleted, stillCompleted.Status)
+
+	eligibleTodos, err = todoRepo.GetCompletedTodosOlderThan(ctx, cutoffDate, 10)
+	require.NoError(t, err)
+	assert.Empty(t, eligibleTodos)
+}
+
 func createTestTodo(t *testing.T, ctx context.Context, repo *repository.TodoRepository, userID string) *todo.Todo {
 	t.Helper()
 
@@ -483,6 +611,22 @@ func createTestTodo(t *testing.T, ctx context.Context, repo *repository.TodoRepo
 	payload := &todo.CreateTodoPayload{
 		Title:       "Test Todo",
 		Description: testing_pkg.Ptr("Test todo description"),
+		Priority:    testing_pkg.Ptr(todo.PriorityHigh),
+		DueDate:     &dueDate,
+	}
+
+	result, err := repo.CreateTodo(ctx, userID, payload)
+	require.NoError(t, err)
+
+	return result
+}
+
+func createTestTodoWithDueDate(t *testing.T, ctx context.Context, repo *repository.TodoRepository, userID, title string, dueDate time.Time) *todo.Todo {
+	t.Helper()
+
+	payload := &todo.CreateTodoPayload{
+		Title:       title,
+		Description: testing_pkg.Ptr(fmt.Sprintf("%s description", title)),
 		Priority:    testing_pkg.Ptr(todo.PriorityHigh),
 		DueDate:     &dueDate,
 	}
@@ -516,4 +660,18 @@ func createTestTodos(t *testing.T, ctx context.Context, repo *repository.TodoRep
 	}
 
 	return todos
+}
+
+func setTodoStatus(t *testing.T, ctx context.Context, repo *repository.TodoRepository, userID string, todoID uuid.UUID, status todo.Status) *todo.Todo {
+	t.Helper()
+
+	payload := &todo.UpdateTodoPayload{
+		ID:     todoID,
+		Status: &status,
+	}
+
+	result, err := repo.UpdateTodo(ctx, userID, payload)
+	require.NoError(t, err)
+
+	return result
 }
