@@ -286,6 +286,28 @@ func TestTodoRepository_GetTodos(t *testing.T) {
 		}
 	})
 
+	t.Run("sort by due date ascending", func(t *testing.T) {
+		page := 1
+		limit := 20
+		sort := "due_date"
+		order := "asc"
+		query := &todo.GetTodosQuery{
+			Page:  &page,
+			Limit: &limit,
+			Sort:  &sort,
+			Order: &order,
+		}
+
+		result, err := todoRepo.GetTodos(ctx, userID, query)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Len(t, result.Data, 3)
+
+		assert.Equal(t, "Test Todo 1", result.Data[0].Title)
+		assert.Equal(t, "Test Todo 2", result.Data[1].Title)
+		assert.Equal(t, "Test Todo 3", result.Data[2].Title)
+	})
+
 	t.Run("with canceled context", func(t *testing.T) {
 		canceledCtx, cancel := context.WithCancel(ctx)
 		cancel()

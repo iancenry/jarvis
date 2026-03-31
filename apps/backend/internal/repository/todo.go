@@ -21,6 +21,13 @@ import (
 type TodoRepository struct {
 	server *server.Server
 }
+// todoSortColumns maps allowed sort fields from the API to their corresponding database columns to prevent SQL injection through the sort parameter
+var todoSortColumns = map[string]string{
+	"created_at": "t.created_at",
+	"updated_at": "t.updated_at",
+	"due_date":   "t.due_date",
+	"priority":   "t.priority",
+}
 
 // NewTodoRepository creates a new instance of TodoRepository with the provided server dependency
 func NewTodoRepository(server *server.Server) *TodoRepository {
@@ -277,16 +284,20 @@ func (r *TodoRepository) GetTodos(ctx context.Context, userID string, query *tod
 	// otherwise we get a row for each comment which causes the same todo to be duplicated in the results
 	// also necessary when performing aggregation
 	stmt += " GROUP BY t.id, c.id"
+
+	sortColumn := todoSortColumns["created_at"]
 	if query.Sort != nil {
-		stmt := " ORDER BY t." + *query.Sort
-		if query.Order != nil && *query.Order == "desc" {
-			stmt += " DESC"
-		} else {
-			stmt += " ASC"
+		if mappedColumn, ok := todoSortColumns[*query.Sort]; ok {
+			sortColumn = mappedColumn
 		}
-	} else {
-		stmt += " ORDER BY t.created_at DESC"
 	}
+
+	sortOrder := "DESC"
+	if query.Order != nil && strings.EqualFold(*query.Order, "asc") {
+		sortOrder = "ASC"
+	}
+
+	stmt += fmt.Sprintf(" ORDER BY %s %s", sortColumn, sortOrder)
 
 	stmt += " LIMIT @limit OFFSET @offset"
 	args["limit"] = *query.Limit
@@ -550,8 +561,9 @@ func (r *TodoRepository) DeleteAttachment(ctx context.Context, todoID uuid.UUID,
 	return nil
 }
 
-// RestoreAttachment is used to restore attachment metadata when an attachment is deleted and then restored from S3 
-//  since we perform a hard delete on the attachment record in the database when an attachment is deleted, we need to restore the metadata when the attachment is restored from S3
+// RestoreAttachment is used to restore attachment metadata when an attachment is deleted and then restored from S3
+//
+//	since we perform a hard delete on the attachment record in the database when an attachment is deleted, we need to restore the metadata when the attachment is restored from S3
 func (r *TodoRepository) RestoreAttachment(ctx context.Context, item *attachment.Attachment) error {
 	stmt := `
 	INSERT INTO attachments (
