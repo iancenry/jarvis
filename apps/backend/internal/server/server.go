@@ -51,14 +51,9 @@ func New(cfg *config.Config, logger *zerolog.Logger, loggerService *loggerPkg.Lo
 		// Don't fail startup if Redis is unavailable
 	}
 
-	// job service
+	// Initialize the job service here, but defer starting it until its runtime
+	// dependencies have been injected by the service wiring layer.
 	jobService := job.NewJobService(logger, cfg)
-	jobService.InitHandlers(cfg, logger)
-
-	// Start job server
-	if err := jobService.Start(); err != nil {
-		return nil, err
-	}
 
 	server := &Server{
 		Config:        cfg,

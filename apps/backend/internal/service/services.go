@@ -10,17 +10,17 @@ import (
 )
 
 type Services struct {
-	Auth *AuthService
-	Job  *job.JobService
-	Todo *TodoService
-	Comment *CommentService
+	Auth     *AuthService
+	Job      *job.JobService
+	Todo     *TodoService
+	Comment  *CommentService
 	Category *CategoryService
 }
 
 func NewServices(s *server.Server, repos *repository.Repositories) (*Services, error) {
 	awsClient, err := aws.NewAWS(s)
 	if err != nil {
-		return nil,  fmt.Errorf("failed to create AWS client %w", err)
+		return nil, fmt.Errorf("failed to create AWS client: %w", err)
 	}
 
 	authService := NewAuthService(s)
@@ -29,13 +29,18 @@ func NewServices(s *server.Server, repos *repository.Repositories) (*Services, e
 	categoryService := NewCategoryService(s, repos.Category)
 
 	// Inject AuthService into JobService for email tasks that require user information
-	s.Job.SetAuthService(authService)
+	if s.Job != nil {
+		s.Job.SetAuthService(authService)
+		if err := s.Job.Start(); err != nil {
+			return nil, fmt.Errorf("failed to start job service: %w", err)
+		}
+	}
 
 	return &Services{
-		Job:  s.Job,
-		Auth: authService,
+		Job:      s.Job,
+		Auth:     authService,
 		Category: categoryService,
-		Todo: todoService,
-		Comment: commentService,
+		Todo:     todoService,
+		Comment:  commentService,
 	}, nil
 }
