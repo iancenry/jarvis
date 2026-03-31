@@ -2,12 +2,16 @@ package handler
 
 import (
 	"reflect"
+	"time"
 
 	"github.com/iancenry/jarvis/internal/errs"
+	"github.com/iancenry/jarvis/internal/middleware"
 	"github.com/iancenry/jarvis/internal/server"
 	"github.com/iancenry/jarvis/internal/validation"
 	"github.com/labstack/echo/v4"
 )
+
+var slowRequestThreshold = time.Second
 
 // Handler provides base functionality for all handlers
 type Handler struct {
@@ -34,6 +38,7 @@ func handleRequest[Req validation.Validatable, Res any](
 	handler HandlerFunc[Req, Res],
 	writeResponse responseWriter[Res],
 ) error {
+	start := time.Now()
 	req, err := newRequestPayload(prototype)
 	if err != nil {
 		return err
@@ -48,7 +53,20 @@ func handleRequest[Req validation.Validatable, Res any](
 		return err
 	}
 
-	return writeResponse(c, result)
+	if err := writeResponse(c, result); err != nil {
+		return err
+	}
+
+	totalDuration := time.Since(start)
+	if totalDuration >= slowRequestThreshold {
+		middleware.GetLogger(c).Warn().
+			Str("operation", "slow_request").
+			Int("status", c.Response().Status).
+			Dur("total_duration", totalDuration).
+			Msg("slow request")
+	}
+
+	return nil
 }
 
 func newRequestPayload[Req validation.Validatable](prototype Req) (Req, error) {

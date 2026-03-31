@@ -7,7 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/iancenry/jarvis/internal/middleware"
 	"github.com/labstack/echo/v4"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,7 +58,31 @@ func TestHandleNoContentReturnsConfiguredStatus(t *testing.T) {
 	assert.Empty(t, response.Body.String())
 }
 
-func performJSONRequest(t *testing.T, e *echo.Echo, handler echo.HandlerFunc, method string, body any) *httptest.ResponseRecorder {
+func TestHandleLogsSlowRequests(t *testing.T) {
+	oldThreshold := slowRequestThreshold
+	slowRequestThreshold = 0
+	t.Cleanup(func() {
+		slowRequestThreshold = oldThreshold
+	})
+
+	e := echo.New()
+	var logOutput bytes.Buffer
+	logger := zerolog.New(&logOutput)
+	handler := Handle(
+		func(c echo.Context, payload *reusablePayload) (map[string]string, error) {
+			return map[string]string{"name": payload.Name}, nil
+		},
+		http.StatusOK,
+		&reusablePayload{},
+	)
+
+	response := performJSONRequest(t, e, handler, http.MethodPost, map[string]string{"name": "slow"}, &logger)
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Contains(t, logOutput.String(), `"operation":"slow_request"`)
+	assert.Contains(t, logOutput.String(), `"status":200`)
+}
+
+func performJSONRequest(t *testing.T, e *echo.Echo, handler echo.HandlerFunc, method string, body any, logger ...*zerolog.Logger) *httptest.ResponseRecorder {
 	t.Helper()
 
 	requestBody, err := json.Marshal(body)
@@ -66,6 +92,9 @@ func performJSONRequest(t *testing.T, e *echo.Echo, handler echo.HandlerFunc, me
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
+	if len(logger) > 0 && logger[0] != nil {
+		ctx.Set(middleware.LoggerKey, logger[0])
+	}
 
 	err = handler(ctx)
 	require.NoError(t, err)
