@@ -305,44 +305,73 @@ func (r *TodoRepository) UpdateTodo(ctx context.Context, userID string, payload 
 		"user_id": userID,
 	}
 	setClauses := []string{}
-	if payload.Title != nil {
+	if payload.Title.IsSet() {
+		if payload.Title.IsNull() {
+			return nil, fmt.Errorf("title cannot be null for user_id=%s todo_id=%s", userID, payload.ID)
+		}
 		setClauses = append(setClauses, "title = @title")
-		args["title"] = *payload.Title
+		args["title"] = payload.Title.Value()
 	}
-	if payload.Description != nil {
+	if payload.Description.IsSet() {
 		setClauses = append(setClauses, "description = @description")
-		args["description"] = *payload.Description
+		if payload.Description.IsNull() {
+			args["description"] = nil
+		} else {
+			args["description"] = payload.Description.Value()
+		}
 	}
-	if payload.Status != nil {
+	if payload.Status.IsSet() {
+		if payload.Status.IsNull() {
+			return nil, fmt.Errorf("status cannot be null for user_id=%s todo_id=%s", userID, payload.ID)
+		}
 		setClauses = append(setClauses, "status = @status")
-		args["status"] = *payload.Status
+		args["status"] = payload.Status.Value()
 
-		if *payload.Status == todo.StatusCompleted {
+		if payload.Status.Value() == todo.StatusCompleted {
 			setClauses = append(setClauses, "completed_at = @completed_at")
 			args["completed_at"] = time.Now()
 		} else {
 			setClauses = append(setClauses, "completed_at = NULL")
 		}
 	}
-	if payload.Priority != nil {
+	if payload.Priority.IsSet() {
+		if payload.Priority.IsNull() {
+			return nil, fmt.Errorf("priority cannot be null for user_id=%s todo_id=%s", userID, payload.ID)
+		}
 		setClauses = append(setClauses, "priority = @priority")
-		args["priority"] = *payload.Priority
+		args["priority"] = payload.Priority.Value()
 	}
-	if payload.DueDate != nil {
+	if payload.DueDate.IsSet() {
 		setClauses = append(setClauses, "due_date = @due_date")
-		args["due_date"] = *payload.DueDate
+		if payload.DueDate.IsNull() {
+			args["due_date"] = nil
+		} else {
+			args["due_date"] = payload.DueDate.Value()
+		}
 	}
-	if payload.ParentTodoID != nil {
+	if payload.ParentTodoID.IsSet() {
 		setClauses = append(setClauses, "parent_todo_id = @parent_todo_id")
-		args["parent_todo_id"] = *payload.ParentTodoID
+		if payload.ParentTodoID.IsNull() {
+			args["parent_todo_id"] = nil
+		} else {
+			args["parent_todo_id"] = payload.ParentTodoID.Value()
+		}
 	}
-	if payload.CategoryID != nil {
+	if payload.CategoryID.IsSet() {
 		setClauses = append(setClauses, "category_id = @category_id")
-		args["category_id"] = *payload.CategoryID
+		if payload.CategoryID.IsNull() {
+			args["category_id"] = nil
+		} else {
+			args["category_id"] = payload.CategoryID.Value()
+		}
 	}
-	if payload.Metadata != nil {
+	if payload.Metadata.IsSet() {
 		setClauses = append(setClauses, "metadata = @metadata")
-		args["metadata"] = *payload.Metadata
+		if payload.Metadata.IsNull() {
+			args["metadata"] = nil
+		} else {
+			args["metadata"] = payload.Metadata.Value()
+		}
 	}
 
 	if len(setClauses) == 0 {

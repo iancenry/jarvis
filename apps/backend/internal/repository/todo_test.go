@@ -8,10 +8,12 @@ import (
 
 	"github.com/google/uuid"
 	attachmentModel "github.com/iancenry/jarvis/internal/model/attachment"
+	category "github.com/iancenry/jarvis/internal/model/category"
 	commentModel "github.com/iancenry/jarvis/internal/model/comment"
 	"github.com/iancenry/jarvis/internal/model/todo"
 	"github.com/iancenry/jarvis/internal/repository"
 	testing_pkg "github.com/iancenry/jarvis/internal/testing"
+	"github.com/iancenry/jarvis/internal/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -373,7 +375,7 @@ func TestTodoRepository_UpdateTodo(t *testing.T) {
 		newTitle := "Updated Todo Title"
 		payload := &todo.UpdateTodoPayload{
 			ID:    testTodo.ID,
-			Title: &newTitle,
+			Title: validation.NewPatchValue(newTitle),
 		}
 
 		result, err := todoRepo.UpdateTodo(ctx, userID, payload)
@@ -389,7 +391,7 @@ func TestTodoRepository_UpdateTodo(t *testing.T) {
 		status := todo.StatusCompleted
 		payload := &todo.UpdateTodoPayload{
 			ID:     testTodo.ID,
-			Status: &status,
+			Status: validation.NewPatchValue(status),
 		}
 
 		result, err := todoRepo.UpdateTodo(ctx, userID, payload)
@@ -405,8 +407,8 @@ func TestTodoRepository_UpdateTodo(t *testing.T) {
 		newPriority := todo.PriorityLow
 		payload := &todo.UpdateTodoPayload{
 			ID:       testTodo.ID,
-			Title:    &newTitle,
-			Priority: &newPriority,
+			Title:    validation.NewPatchValue(newTitle),
+			Priority: validation.NewPatchValue(newPriority),
 		}
 
 		result, err := todoRepo.UpdateTodo(ctx, userID, payload)
@@ -433,7 +435,7 @@ func TestTodoRepository_UpdateTodo(t *testing.T) {
 		newTitle := "Non Existent Todo"
 		payload := &todo.UpdateTodoPayload{
 			ID:    nonExistentID,
-			Title: &newTitle,
+			Title: validation.NewPatchValue(newTitle),
 		}
 
 		result, err := todoRepo.UpdateTodo(ctx, userID, payload)
@@ -448,12 +450,67 @@ func TestTodoRepository_UpdateTodo(t *testing.T) {
 		newTitle := "Canceled Update"
 		payload := &todo.UpdateTodoPayload{
 			ID:    testTodo.ID,
-			Title: &newTitle,
+			Title: validation.NewPatchValue(newTitle),
 		}
 
 		result, err := todoRepo.UpdateTodo(canceledCtx, userID, payload)
 		assert.Error(t, err)
 		assert.Nil(t, result)
+	})
+
+	t.Run("clear nullable fields with explicit null", func(t *testing.T) {
+		categoryRepo := repository.NewCategoryRepository(testServer)
+
+		categoryItem, err := categoryRepo.CreateCategory(ctx, userID, &category.CreateCategoryPayload{
+			Name:        "Work",
+			Color:       "#112233",
+			Description: testing_pkg.Ptr("Category description"),
+		})
+		require.NoError(t, err)
+
+		parentTodo := createTestTodo(t, ctx, todoRepo, userID)
+		reminder := "tomorrow"
+		color := "#ff0000"
+		targetDueDate := time.Now().Add(48 * time.Hour)
+		targetPayload := &todo.CreateTodoPayload{
+			Title:        "Nullable Todo",
+			Description:  testing_pkg.Ptr("Needs clearing"),
+			Priority:     testing_pkg.Ptr(todo.PriorityHigh),
+			DueDate:      &targetDueDate,
+			ParentTodoID: &parentTodo.ID,
+			CategoryID:   &categoryItem.ID,
+			Metadata: &todo.Metadata{
+				Tags:     []string{"work"},
+				Reminder: &reminder,
+				Color:    &color,
+			},
+		}
+
+		targetTodo, err := todoRepo.CreateTodo(ctx, userID, targetPayload)
+		require.NoError(t, err)
+		require.NotNil(t, targetTodo.Description)
+		require.NotNil(t, targetTodo.DueDate)
+		require.NotNil(t, targetTodo.ParentTodoID)
+		require.NotNil(t, targetTodo.CategoryID)
+		require.NotNil(t, targetTodo.Metadata)
+
+		payload := &todo.UpdateTodoPayload{
+			ID:           targetTodo.ID,
+			Description:  validation.NewPatchNull[string](),
+			DueDate:      validation.NewPatchNull[time.Time](),
+			ParentTodoID: validation.NewPatchNull[uuid.UUID](),
+			CategoryID:   validation.NewPatchNull[uuid.UUID](),
+			Metadata:     validation.NewPatchNull[todo.Metadata](),
+		}
+
+		result, err := todoRepo.UpdateTodo(ctx, userID, payload)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Nil(t, result.Description)
+		assert.Nil(t, result.DueDate)
+		assert.Nil(t, result.ParentTodoID)
+		assert.Nil(t, result.CategoryID)
+		assert.Nil(t, result.Metadata)
 	})
 }
 
@@ -748,7 +805,7 @@ func setTodoStatus(t *testing.T, ctx context.Context, repo *repository.TodoRepos
 
 	payload := &todo.UpdateTodoPayload{
 		ID:     todoID,
-		Status: &status,
+		Status: validation.NewPatchValue(status),
 	}
 
 	result, err := repo.UpdateTodo(ctx, userID, payload)

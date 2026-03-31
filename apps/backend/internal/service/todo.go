@@ -137,8 +137,9 @@ func (ts *TodoService) GetTodos(ctx echo.Context, userID string, query *todo.Get
 func (ts *TodoService) UpdateTodo(ctx echo.Context, userID string, payload *todo.UpdateTodoPayload) (*todo.Todo, error) {
 	logger := middleware.GetLogger(ctx)
 
-	if payload.ParentTodoID != nil {
-		parentTodo, err := ts.todoRepo.CheckTodoExists(ctx.Request().Context(), userID, *payload.ParentTodoID)
+	if payload.ParentTodoID.IsSet() && !payload.ParentTodoID.IsNull() {
+		parentTodoID := payload.ParentTodoID.Value()
+		parentTodo, err := ts.todoRepo.CheckTodoExists(ctx.Request().Context(), userID, parentTodoID)
 		if err != nil {
 			logger.Error().Err(err).Msg("parent todo validation failed")
 			return nil, err
@@ -159,8 +160,9 @@ func (ts *TodoService) UpdateTodo(ctx echo.Context, userID string, payload *todo
 		logger.Debug().Msg("parent todo validation passed")
 	}
 
-	if payload.CategoryID != nil {
-		_, err := ts.categoryRepo.GetCategoryByID(ctx.Request().Context(), userID, *payload.CategoryID)
+	if payload.CategoryID.IsSet() && !payload.CategoryID.IsNull() {
+		categoryID := payload.CategoryID.Value()
+		_, err := ts.categoryRepo.GetCategoryByID(ctx.Request().Context(), userID, categoryID)
 		if err != nil {
 			logger.Error().Err(err).Msg("category validation failed")
 			return nil, err

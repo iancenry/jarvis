@@ -30,9 +30,9 @@ func (r *CategoryRepository) CreateCategory(ctx context.Context, userID string, 
 		RETURNING *
 	`
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
-		"user_id": userID,
-		"name": payload.Name,
-		"color": payload.Color,
+		"user_id":     userID,
+		"name":        payload.Name,
+		"color":       payload.Color,
 		"description": payload.Description,
 	})
 
@@ -87,10 +87,10 @@ func (r *CategoryRepository) GetCategories(ctx context.Context, userID string, q
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return &model.PaginatedResponse[category.Category]{
-				Data: []category.Category{},
-				Page: *query.Page,
-				Limit: *query.Limit,
-				Total: 0,
+				Data:       []category.Category{},
+				Page:       *query.Page,
+				Limit:      *query.Limit,
+				Total:      0,
 				TotalPages: 0,
 			}, nil
 		}
@@ -113,10 +113,10 @@ func (r *CategoryRepository) GetCategories(ctx context.Context, userID string, q
 	}
 
 	return &model.PaginatedResponse[category.Category]{
-		Data: categories,
-		Page: *query.Page,
-		Limit: *query.Limit,
-		Total: total,
+		Data:       categories,
+		Page:       *query.Page,
+		Limit:      *query.Limit,
+		Total:      total,
 		TotalPages: (total + *query.Limit - 1) / *query.Limit,
 	}, nil
 
@@ -130,7 +130,7 @@ func (r *CategoryRepository) GetCategoryByID(ctx context.Context, userID string,
 	`
 	rows, err := r.server.DB.Pool.Query(ctx, stmt, pgx.NamedArgs{
 		"user_id": userID,
-		"id": categoryID,
+		"id":      categoryID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute get category by ID query for user_id=%s and category_id=%s: %w", userID, categoryID, err)
@@ -149,21 +149,31 @@ func (r *CategoryRepository) UpdateCategory(ctx context.Context, userID string, 
 
 	args := pgx.NamedArgs{
 		"user_id": userID,
-		"id": categoryID,
+		"id":      categoryID,
 	}
 
 	setClauses := []string{}
-	if payload.Name != nil {
+	if payload.Name.IsSet() {
+		if payload.Name.IsNull() {
+			return nil, fmt.Errorf("name cannot be null for category_id=%s", categoryID)
+		}
 		setClauses = append(setClauses, "name = @name")
-		args["name"] = *payload.Name
+		args["name"] = payload.Name.Value()
 	}
-	if payload.Color != nil {
+	if payload.Color.IsSet() {
+		if payload.Color.IsNull() {
+			return nil, fmt.Errorf("color cannot be null for category_id=%s", categoryID)
+		}
 		setClauses = append(setClauses, "color = @color")
-		args["color"] = *payload.Color
+		args["color"] = payload.Color.Value()
 	}
-	if payload.Description != nil {
+	if payload.Description.IsSet() {
 		setClauses = append(setClauses, "description = @description")
-		args["description"] = *payload.Description
+		if payload.Description.IsNull() {
+			args["description"] = nil
+		} else {
+			args["description"] = payload.Description.Value()
+		}
 	}
 
 	if len(setClauses) == 0 {
@@ -186,7 +196,6 @@ func (r *CategoryRepository) UpdateCategory(ctx context.Context, userID string, 
 	return &updatedCategory, nil
 }
 
-
 func (r *CategoryRepository) DeleteCategory(ctx context.Context, userID string, categoryID uuid.UUID) error {
 	stmt := `
 		DELETE FROM todo_categories
@@ -194,7 +203,7 @@ func (r *CategoryRepository) DeleteCategory(ctx context.Context, userID string, 
 	`
 	result, err := r.server.DB.Pool.Exec(ctx, stmt, pgx.NamedArgs{
 		"user_id": userID,
-		"id": categoryID,
+		"id":      categoryID,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to execute delete category query for user_id=%s and category_id=%s: %w", userID, categoryID, err)
