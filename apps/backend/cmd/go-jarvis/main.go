@@ -19,7 +19,7 @@ import (
 )
 
 const DefaultContextTimeout = 30
-
+// API: serves HTTP, talks to Postgres, optionally knows about Redis for health/integrations.
 func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {

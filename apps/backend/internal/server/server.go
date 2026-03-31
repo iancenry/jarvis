@@ -2,14 +2,12 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/iancenry/jarvis/internal/config"
 	"github.com/iancenry/jarvis/internal/database"
-	"github.com/iancenry/jarvis/internal/lib/job"
 	loggerPkg "github.com/iancenry/jarvis/internal/logger"
 	"github.com/newrelic/go-agent/v3/integrations/nrredis-v9"
 	"github.com/redis/go-redis/v9"
@@ -23,7 +21,6 @@ type Server struct {
 	DB            *database.Database
 	Redis         *redis.Client
 	httpServer    *http.Server
-	Job           *job.JobService
 }
 
 func New(cfg *config.Config, logger *zerolog.Logger, loggerService *loggerPkg.LoggerService) (*Server, error) {
@@ -33,14 +30,9 @@ func New(cfg *config.Config, logger *zerolog.Logger, loggerService *loggerPkg.Lo
 	}
 
 	var redisClient *redis.Client
-	var jobService *job.JobService
 
-	if cfg.WorkerEnabled() {
-		if cfg.Redis.Address == "" {
-			return nil, errors.New("redis address is required when the background worker is enabled")
-		}
-
-		// Redis client with New Relic integration
+	if cfg.Redis.Address != "" {
+		// Optional Redis client for API-side integrations and health reporting.
 		redisClient = redis.NewClient(&redis.Options{
 			Addr:     cfg.Redis.Address,
 			Password: cfg.Redis.Password,
@@ -52,21 +44,17 @@ func New(cfg *config.Config, logger *zerolog.Logger, loggerService *loggerPkg.Lo
 			redisClient.AddHook(nrredis.NewHook(redisClient.Options()))
 		}
 
-		// Test Redis connection and fail fast when the worker depends on it.
+		// Test Redis connection and fail fast when Redis is explicitly configured.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		if err := redisClient.Ping(ctx).Err(); err != nil {
-			return nil, fmt.Errorf("failed to connect to Redis for the background worker: %w", err)
+			return nil, fmt.Errorf("failed to connect to configured Redis: %w", err)
 		}
 
 		logger.Info().Str("redis_addr", cfg.Redis.Address).Msg("connected to redis")
-
-		// Initialize the job service here, but defer starting it until its runtime
-		// dependencies have been injected by the service wiring layer.
-		jobService = job.NewJobService(logger, cfg)
 	} else {
-		logger.Info().Msg("background worker disabled; skipping redis initialization")
+		logger.Info().Msg("redis not configured; skipping redis initialization")
 	}
 
 	server := &Server{
@@ -75,7 +63,6 @@ func New(cfg *config.Config, logger *zerolog.Logger, loggerService *loggerPkg.Lo
 		LoggerService: loggerService,
 		DB:            db,
 		Redis:         redisClient,
-		Job:           jobService,
 	}
 
 	// Start metrics collection
@@ -96,7 +83,7 @@ func (s *Server) SetupHTTPServer(handler http.Handler) {
 
 func (s *Server) Start() error {
 	if s.httpServer == nil {
-		return errors.New("HTTP server not initialized")
+		return fmt.Errorf("HTTP server not initialized")
 	}
 
 	s.Logger.Info().
@@ -110,10 +97,6 @@ func (s *Server) Start() error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	if err := s.httpServer.Shutdown(ctx); err != nil {
 		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
-	}
-
-	if s.Job != nil {
-		s.Job.Stop()
 	}
 
 	if s.Redis != nil {

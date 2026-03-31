@@ -152,11 +152,5 @@ func LoadConfig() (*Config, error) {
 		mainConfig.Cron = DefaultCronConfig()
 	}
 
-	if mainConfig.WorkerEnabled() && mainConfig.Redis.Address == "" {
-		logger.Fatal().
-			Bool("worker_enabled", true).
-			Msg("redis.address is required when the background worker is enabled")
-	}
-
 	return mainConfig, nil
 }

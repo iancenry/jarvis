@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Cron: one-shot CLI that enqueues scheduled work.
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "cron",
