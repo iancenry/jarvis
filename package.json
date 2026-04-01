@@ -4,10 +4,12 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "emails:export": "bun --filter @jarvis/emails export",
     "format:check": "turbo run format:check",
     "format:fix": "turbo run format:fix",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
+    "openapi:gen": "bun --filter @jarvis/openapi gen",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rimraf node_modules"
   },

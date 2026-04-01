@@ -1,10 +1,11 @@
 package email
 
 import (
-	"bytes"
 	"fmt"
 	"html/template"
+	"strings"
 
+	"github.com/iancenry/jarvis/internal/assets"
 	"github.com/iancenry/jarvis/internal/config"
 	"github.com/pkg/errors"
 	"github.com/resend/resend-go/v2"
@@ -23,24 +24,31 @@ func NewClient(cfg *config.Config, logger *zerolog.Logger) *Client {
 	}
 }
 
-func (c *Client) SendEmail(to, subject string, templateName Template, data map[string]any) error {
-	tmplPath := fmt.Sprintf("%s/%s.html", "templates/emails", templateName)
-
-	tmpl, err := template.ParseFiles(tmplPath)
+func (c *Client) renderEmail(templateName Template, data map[string]any) (string, error) {
+	tmpl, err := template.ParseFS(assets.Files, assets.EmailTemplatePath(string(templateName)))
 	if err != nil {
-		return errors.Wrapf(err, "failed to parse email template %s", templateName)
+		return "", errors.Wrapf(err, "failed to parse email template %s", templateName)
 	}
 
-	var body bytes.Buffer
+	var body strings.Builder
 	if err := tmpl.Execute(&body, data); err != nil {
-		return errors.Wrapf(err, "failed to execute email template %s", templateName)
+		return "", errors.Wrapf(err, "failed to execute email template %s", templateName)
+	}
+
+	return body.String(), nil
+}
+
+func (c *Client) SendEmail(to, subject string, templateName Template, data map[string]any) error {
+	bodyHTML, err := c.renderEmail(templateName, data)
+	if err != nil {
+		return err
 	}
 
 	params := &resend.SendEmailRequest{
 		From:    fmt.Sprintf("%s <%s>", "JARVIS", "onboarding@resend.dev"),
 		To:      []string{to},
 		Subject: subject,
-		Html:    body.String(),
+		Html:    bodyHTML,
 	}
 
 	_, err = c.client.Emails.Send(params)

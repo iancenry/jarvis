@@ -164,6 +164,30 @@ For local background flows:
 - Worker requires PostgreSQL and Redis.
 - Cron commands require PostgreSQL and Redis.
 
+### Generated Assets
+
+Email templates and the OpenAPI spec are generated outside the backend and then copied into the backend's embedded asset directory.
+
+- Email source of truth: [packages/emails/src/templates](/Users/iancenry/Desktop/projects/learning/Go/boilerplate/jarvis/packages/emails/src/templates)
+- OpenAPI source of truth: [packages/openapi](/Users/iancenry/Desktop/projects/learning/Go/boilerplate/jarvis/packages/openapi)
+- Embedded backend asset directory: [internal/assets](/Users/iancenry/Desktop/projects/learning/Go/boilerplate/jarvis/apps/backend/internal/assets)
+
+Regenerate them from the repo root with:
+
+```bash
+bun run emails:export
+bun run openapi:gen
+```
+
+Or run the package scripts directly:
+
+```bash
+bun --filter @jarvis/emails export
+bun --filter @jarvis/openapi gen
+```
+
+Because the backend now uses Go `embed`, regenerate first and then restart the backend process so the updated files are compiled into the running binary.
+
 ### Project Structure
 
 #### Handlers (`internal/handler/`)
