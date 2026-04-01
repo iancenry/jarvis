@@ -85,6 +85,17 @@ tasks:
       - go mod verify
   
   test:
-    desc: run all tests
+    desc: run the fast unit/default backend test suite
     cmds:
       - go test -v ./...
+
+  test:integration:
+    desc: run Docker-backed repository integration tests
+    cmds:
+      - go test -tags=integration -v ./internal/repository
+
+  test:all:
+    desc: run both the default suite and Docker-backed repository integration tests
+    cmds:
+      - task test
+      - task test:integration

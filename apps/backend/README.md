@@ -21,8 +21,7 @@ backend/
 │   ├── middleware/           # HTTP middleware
 │   ├── lib/                  # Shared libraries - reusable, domain-agnostic infrastructure code
 │   └── validation/           # Request validation
-├── static/                   # Static files (OpenAPI spec)
-├── templates/                # Email templates
+├── internal/assets/          # Embedded OpenAPI and email assets
 └── Taskfile.yml              # Task automation
 ```
 
@@ -135,7 +134,9 @@ task worker                  # Run the background worker
 task dev:all                 # Run the API server and worker together
 task cron:list               # List available cron jobs
 task cron:run job=JOB_NAME   # Run one cron job manually
-task test                    # Run tests
+task test                    # Run the fast/default test suite
+task test:integration        # Run Docker-backed repository tests
+task test:all                # Run unit and integration tests
 task migrations:new name=X   # Create new migration
 task migrations:up           # Apply migrations
 task tidy                    # Format and tidy dependencies
@@ -238,11 +239,23 @@ Cross-cutting concerns:
 
 ### Testing
 
-#### Unit Tests
+#### Default Test Suite
 
 ```bash
 go test ./...
 ```
+
+This suite is intended to stay fast and infrastructure-free. It covers validation, handlers, services, jobs, config, worker startup logic, and command-path behavior.
+
+#### Repository Integration Tests
+
+The repository tests use Testcontainers and a real PostgreSQL instance. They are gated behind the `integration` build tag so they do not make the default suite depend on Docker.
+
+```bash
+go test -tags=integration ./internal/repository
+```
+
+Use `task test:integration` when Docker is available locally, or `task test:all` when you want the full backend suite.
 
 ## Logging
 
