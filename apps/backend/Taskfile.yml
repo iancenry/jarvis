@@ -21,9 +21,37 @@ tasks:
     internal: true
 
   run:
-    desc: run the cmd/go-jarvis application
+    desc: run the API server (cmd/go-jarvis)
     cmds:
       - go run ./cmd/go-jarvis
+
+  worker:
+    desc: run the dedicated background worker
+    cmds:
+      - go run ./cmd/worker
+
+  cron:list:
+    desc: list available cron jobs
+    cmds:
+      - go run ./cmd/cron list
+
+  cron:run:
+    desc: run a single cron job by name
+    vars:
+      JOB: '{{.job | default ""}}'
+    cmds:
+      - |
+        if [ -z "{{.JOB}}" ]; then
+          echo "Error: job parameter is required"
+          echo "Usage: task cron:run job=due-date-reminders"
+          exit 1
+        fi
+      - go run ./cmd/cron {{.JOB}}
+
+  dev:all:
+    desc: run the API server and worker together for local development
+    cmds:
+      - bash ./scripts/dev-all.sh
 
   migrations:new:
     desc: create a new database migration

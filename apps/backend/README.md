@@ -8,7 +8,9 @@ This backend follows clean architecture principles with clear separation of conc
 
 ```
 backend/
-├── cmd/go-jarvis/        # Application entry point
+├── cmd/go-jarvis/             # API entry point
+├── cmd/worker/                # Background worker entry point
+├── cmd/cron/                  # One-shot cron scheduler entry point
 ├── internal/                  # Private application code
 │   ├── config/               # Configuration management
 │   ├── database/             # Database connections and migrations
@@ -106,10 +108,16 @@ cp .env.example .env
 task migrations:up
 ```
 
-4. Start the server:
+4. Start the API server:
 
 ```bash
 task run
+```
+
+If you need background jobs locally, start the worker in a second terminal:
+
+```bash
+task worker
 ```
 
 ## Configuration
@@ -122,13 +130,39 @@ Configuration is managed through environment variables with the `JARVIS_` prefix
 
 ```bash
 task help                    # Show all available tasks
-task run                     # Run the application
+task run                     # Run the API server
+task worker                  # Run the background worker
+task dev:all                 # Run the API server and worker together
+task cron:list               # List available cron jobs
+task cron:run job=JOB_NAME   # Run one cron job manually
 task test                    # Run tests
 task migrations:new name=X   # Create new migration
 task migrations:up           # Apply migrations
-task migrations:down         # Rollback last migration
 task tidy                    # Format and tidy dependencies
 ```
+
+### Local Runtime Modes
+
+`task run` starts only the HTTP API. This is the right default when you are working on request/response behavior and do not need queued jobs.
+
+`task worker` starts the dedicated Asynq consumer. Run it alongside `task run` when you want reminder emails, reports, or other queued work to be processed locally.
+
+`task dev:all` starts both the API and worker in one terminal session. It does not run cron jobs automatically.
+
+Cron remains a one-shot command. Use `task cron:list` to see the available job names, then run one manually, for example:
+
+```bash
+task cron:run job=due-date-reminders
+task cron:run job=overdue-notifications
+task cron:run job=weekly-reports
+task cron:run job=auto-archive
+```
+
+For local background flows:
+
+- API requires PostgreSQL.
+- Worker requires PostgreSQL and Redis.
+- Cron commands require PostgreSQL and Redis.
 
 ### Project Structure
 

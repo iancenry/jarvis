@@ -2,12 +2,6 @@ import { env } from "@/config/env";
 import { useAuth } from "@clerk/clerk-react";
 import { apiContract } from "@jarvis/openapi/contracts";
 import { initClient } from "@ts-rest/core";
-import axios, {
-  type Method,
-  type AxiosError,
-  isAxiosError,
-  type AxiosResponse,
-} from "axios";
 
 type Headers = Awaited<
   ReturnType<NonNullable<Parameters<typeof initClient>[1]["api"]>>
@@ -26,42 +20,47 @@ export const useApiClient = ({ isBlob = false }: { isBlob?: boolean } = {}) => {
     api: async ({ path, method, headers, body }) => {
       const token = await getToken();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const makeRequest = async (retryCount = 0): Promise<any> => {
+      const makeRequest = async (
+        retryCount = 0,
+      ): Promise<{
+        status: number;
+        body: unknown;
+        headers: Headers;
+      }> => {
         try {
-          const result = await axios.request({
-            method: method as Method,
-            url: `${env.VITE_API_URL}/api${path}`,
+          const response = await fetch(`${env.VITE_API_URL}/api${path}`, {
+            method,
             headers: {
               ...headers,
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
-            data: body,
-            ...(isBlob ? { responseType: "blob" } : {}),
+            body: body ? JSON.stringify(body) : undefined,
           });
-          return {
-            status: result.status,
-            body: result.data,
-            headers: result.headers as unknown as Headers,
-          };
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (e: Error | AxiosError | any) {
-          if (isAxiosError(e)) {
-            const error = e as AxiosError;
-            const response = error.response as AxiosResponse;
 
-            // If unauthorized and we haven't retried yet, retry
-            if (response?.status === 401 && retryCount < 2) {
-              return makeRequest(retryCount + 1);
-            }
+          const responseHeaders = Object.fromEntries(
+            response.headers.entries(),
+          ) as unknown as Headers;
 
-            return {
-              status: response?.status || 500,
-              body: response?.data || { message: "Internal server error" },
-              headers: (response?.headers as unknown as Headers) || {},
-            };
+          // If unauthorized and we haven't retried yet, retry
+          if (response.status === 401 && retryCount < 2) {
+            return makeRequest(retryCount + 1);
           }
-          throw e;
+
+          const data = isBlob
+            ? await response.blob()
+            : await response.json().catch(() => null);
+
+          return {
+            status: response.status,
+            body: data,
+            headers: responseHeaders,
+          };
+        } catch (e) {
+          return {
+            status: 500,
+            body: { message: "Internal server error" },
+            headers: {} as Headers,
+          };
         }
       };
 
