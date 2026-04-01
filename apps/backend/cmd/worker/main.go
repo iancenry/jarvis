@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,11 +14,22 @@ import (
 )
 
 const DefaultShutdownTimeout = 30
+
 // Worker: consumes Asynq jobs from Redis.
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		panic("failed to load config: " + err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
+		return 1
+	}
+
+	if err := cfg.ValidateForWorker(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "invalid worker config: %v\n", err)
+		return 1
 	}
 
 	loggerService := logger.NewLoggerService(cfg.Observability)
@@ -27,19 +39,21 @@ func main() {
 
 	runtime, err := worker.New(cfg, &log)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize worker")
+		log.Error().Err(err).Msg("failed to initialize worker")
+		return 1
 	}
 
 	if !runtime.Enabled() {
 		log.Info().Msg("background worker disabled; exiting")
-		return
+		return 0
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	if err := runtime.Start(); err != nil {
-		log.Fatal().Err(err).Msg("failed to start worker")
+		log.Error().Err(err).Msg("failed to start worker")
+		return 1
 	}
 
 	<-ctx.Done()
@@ -48,8 +62,10 @@ func main() {
 	defer cancel()
 
 	if err := runtime.Shutdown(shutdownCtx); err != nil {
-		log.Fatal().Err(err).Msg("worker forced to shutdown")
+		log.Error().Err(err).Msg("worker forced to shutdown")
+		return 1
 	}
 
 	log.Info().Msg("worker exited properly")
+	return 0
 }

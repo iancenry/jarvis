@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,66 +17,89 @@ import (
 	"github.com/iancenry/jarvis/internal/router"
 	"github.com/iancenry/jarvis/internal/server"
 	"github.com/iancenry/jarvis/internal/service"
+	"github.com/rs/zerolog"
 )
 
 const DefaultContextTimeout = 30
+
 // API: serves HTTP, talks to Postgres, optionally knows about Redis for health/integrations.
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		panic("failed to load config: " + err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
+		return 1
 	}
 
-	// Initialize New Relic logger service
+	if err := cfg.ValidateForAPI(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "invalid API config: %v\n", err)
+		return 1
+	}
+
 	loggerService := logger.NewLoggerService(cfg.Observability)
 	defer loggerService.Shutdown()
 
 	log := logger.NewLoggerWithService(cfg.Observability, loggerService)
+	if err := serve(cfg, &log, loggerService); err != nil {
+		log.Error().Err(err).Msg("api server exited with error")
+		return 1
+	}
 
+	return 0
+}
+
+func serve(cfg *config.Config, log *zerolog.Logger, loggerService *logger.LoggerService) error {
 	if cfg.Primary.Env != "local" {
-		if err := database.Migrate(context.Background(), &log, cfg); err != nil {
-			log.Fatal().Err(err).Msg("failed to migrate database")
+		if err := database.Migrate(context.Background(), log, cfg); err != nil {
+			return fmt.Errorf("failed to migrate database: %w", err)
 		}
 	}
 
-	// Initialize server
-	srv, err := server.New(cfg, &log, loggerService)
+	srv, err := server.New(cfg, log, loggerService)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize server")
+		return fmt.Errorf("failed to initialize server: %w", err)
 	}
 
-	// Initialize repositories, services, and handlers
 	repos := repository.NewRepositories(srv.DB)
-	services, serviceErr := service.NewServices(srv, repos)
-	if serviceErr != nil {
-		log.Fatal().Err(serviceErr).Msg("could not create services")
+	services, err := service.NewServices(srv, repos)
+	if err != nil {
+		return fmt.Errorf("could not create services: %w", err)
 	}
 	handlers := handler.NewHandlers(srv, services)
-
-	// Initialize router
 	r := router.NewRouter(srv, handlers, services)
-
-	// Setup HTTP server
 	srv.SetupHTTPServer(r)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 
-	// Start server
+	serverErrCh := make(chan error, 1)
 	go func() {
-		if err = srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatal().Err(err).Msg("failed to start server")
-		}
+		serverErrCh <- srv.Start()
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
-	<-ctx.Done()
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultContextTimeout*time.Second)
-
-	if err = srv.Shutdown(ctx); err != nil {
-		log.Fatal().Err(err).Msg("server forced to shutdown")
+	select {
+	case err := <-serverErrCh:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("failed to start server: %w", err)
+		}
+		return nil
+	case <-ctx.Done():
 	}
-	stop()
-	cancel()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), DefaultContextTimeout*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("server forced to shutdown: %w", err)
+	}
+
+	if err := <-serverErrCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("server exited with error: %w", err)
+	}
 
 	log.Info().Msg("server exited properly")
+	return nil
 }

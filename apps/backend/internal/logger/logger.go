@@ -23,6 +23,10 @@ type LoggerService struct {
 func NewLoggerService(cfg *config.ObservabilityConfig) *LoggerService {
 	service := &LoggerService{}
 
+	if cfg == nil {
+		return service
+	}
+
 	if cfg.NewRelic.LicenseKey == "" {
 		return service
 	}
@@ -61,9 +65,12 @@ func (ls *LoggerService) GetApplication() *newrelic.Application {
 	return ls.nrApp
 }
 
-
 // NewLoggerWithService creates a logger with full config and logger service
 func NewLoggerWithService(cfg *config.ObservabilityConfig, loggerService *LoggerService) zerolog.Logger {
+	if cfg == nil {
+		cfg = config.DefaultObservabilityConfig()
+	}
+
 	var logLevel zerolog.Level
 	level := cfg.GetLogLevel()
 

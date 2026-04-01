@@ -17,15 +17,19 @@ type Runtime struct {
 }
 
 func New(cfg *config.Config, logger *zerolog.Logger) (*Runtime, error) {
+	if cfg == nil {
+		return nil, errors.New("config is required")
+	}
+
+	if err := cfg.ValidateForWorker(); err != nil {
+		return nil, err
+	}
+
 	if !cfg.WorkerEnabled() {
 		return &Runtime{
 			logger:  logger,
 			enabled: false,
 		}, nil
-	}
-
-	if cfg.Redis.Address == "" {
-		return nil, errors.New("redis address is required when the background worker is enabled")
 	}
 
 	jobService := job.NewJobService(logger, cfg)

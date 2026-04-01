@@ -78,6 +78,21 @@ func NewInternalServerError() *HTTPError {
 	}
 }
 
+func NewServiceUnavailableError(message string, override bool, code *string) *HTTPError {
+	formattedCode := MakeUpperCaseWithUnderscores(http.StatusText(http.StatusServiceUnavailable))
+
+	if code != nil {
+		formattedCode = *code
+	}
+
+	return &HTTPError{
+		Code:     formattedCode,
+		Message:  message,
+		Status:   http.StatusServiceUnavailable,
+		Override: override,
+	}
+}
+
 func ValidationError(err error) *HTTPError {
 	return NewBadRequestError("Validation failed: "+err.Error(), false, nil, nil, nil)
 }

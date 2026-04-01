@@ -237,6 +237,21 @@ func TestUploadTodoAttachmentRejectsOversizedFiles(t *testing.T) {
 	assert.Equal(t, "ATTACHMENT_FILE_TOO_LARGE", httpErr.Code)
 }
 
+func TestUploadTodoAttachmentReturnsServiceUnavailableWhenStorageDisabled(t *testing.T) {
+	service := newTestTodoService(&attachmentRepoStub{}, nil)
+	fileHeader := newMultipartFileHeader(t, "file", "note.txt", []byte("tiny"))
+
+	attachmentItem, err := service.UploadTodoAttachment(newTestServiceContext(), "user-1", uuid.New(), fileHeader)
+
+	require.Nil(t, attachmentItem)
+	require.Error(t, err)
+
+	var httpErr *errs.HTTPError
+	require.ErrorAs(t, err, &httpErr)
+	assert.Equal(t, 503, httpErr.Status)
+	assert.Equal(t, "ATTACHMENT_STORAGE_DISABLED", httpErr.Code)
+}
+
 func TestUploadTodoAttachmentRejectsUnsupportedContentTypes(t *testing.T) {
 	repo := &attachmentRepoStub{}
 	store := &attachmentStoreStub{}

@@ -48,11 +48,16 @@ func NewJobService(logger *zerolog.Logger, cfg *config.Config) *JobService {
 		},
 	)
 
+	var emailClient *email.Client
+	if cfg.EmailEnabled() {
+		emailClient = email.NewClient(cfg, logger)
+	}
+
 	return &JobService{
 		Client:      client,
 		server:      server,
 		logger:      logger,
-		emailClient: email.NewClient(cfg, logger),
+		emailClient: emailClient,
 	}
 }
 

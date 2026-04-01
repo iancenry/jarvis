@@ -20,6 +20,7 @@ import (
 )
 
 const attachmentCompensationTimeout = 5 * time.Second
+const attachmentStorageDisabledCode = "ATTACHMENT_STORAGE_DISABLED"
 
 type todoAttachmentRepository interface {
 	CheckTodoExists(ctx context.Context, userID string, todoID uuid.UUID) (*todo.Todo, error)
@@ -227,6 +228,11 @@ func (ts *TodoService) GetTodoStats(ctx context.Context, userID string) (*todo.T
 func (ts *TodoService) UploadTodoAttachment(ctx context.Context, userID string, todoID uuid.UUID, file *multipart.FileHeader) (*attachment.Attachment, error) {
 	logger := middleware.LoggerFromContext(ctx)
 
+	if err := ts.requireAttachmentStorage(); err != nil {
+		logger.Warn().Err(err).Msg("attachment upload requested while storage is disabled")
+		return nil, err
+	}
+
 	// Check if the todo exists and belongs to the user
 	_, err := ts.attachmentRepo.CheckTodoExists(ctx, userID, todoID)
 	if err != nil {
@@ -314,6 +320,11 @@ func (ts *TodoService) GetTodoAttachments(ctx context.Context, todoID uuid.UUID)
 func (ts *TodoService) DeleteTodoAttachment(ctx context.Context, userID string, todoID uuid.UUID, attachmentID uuid.UUID) error {
 	logger := middleware.LoggerFromContext(ctx)
 
+	if err := ts.requireAttachmentStorage(); err != nil {
+		logger.Warn().Err(err).Msg("attachment delete requested while storage is disabled")
+		return err
+	}
+
 	_, err := ts.attachmentRepo.CheckTodoExists(ctx, userID, todoID)
 	if err != nil {
 		logger.Error().Err(err).Msg("todo validation failed")
@@ -362,6 +373,11 @@ func (ts *TodoService) DeleteTodoAttachment(ctx context.Context, userID string, 
 func (s *TodoService) GetAttachmentPresignedURL(ctx context.Context, userID string, todoID uuid.UUID, attachmentID uuid.UUID) (string, error) {
 	logger := middleware.LoggerFromContext(ctx)
 
+	if err := s.requireAttachmentStorage(); err != nil {
+		logger.Warn().Err(err).Msg("presigned url requested while storage is disabled")
+		return "", err
+	}
+
 	_, err := s.attachmentRepo.CheckTodoExists(ctx, userID, todoID)
 	if err != nil {
 		logger.Error().Err(err).Msg("todo validation failed")
@@ -408,6 +424,10 @@ func (ts *TodoService) compensateAttachmentUpload(logger *zerolog.Logger, s3Key 
 }
 
 func (ts *TodoService) deleteAttachmentFile(s3Key string) error {
+	if err := ts.requireAttachmentStorage(); err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), attachmentCompensationTimeout)
 	defer cancel()
 
@@ -419,4 +439,20 @@ func (ts *TodoService) restoreAttachmentMetadata(item *attachment.Attachment) er
 	defer cancel()
 
 	return ts.attachmentRepo.RestoreAttachment(ctx, item)
+}
+
+func (ts *TodoService) requireAttachmentStorage() error {
+	if ts != nil && ts.fileStore != nil && ts.uploadBucket != "" {
+		return nil
+	}
+
+	return errs.NewServiceUnavailableError(
+		"attachment storage is disabled",
+		false,
+		stringPointer(attachmentStorageDisabledCode),
+	)
+}
+
+func stringPointer(value string) *string {
+	return &value
 }

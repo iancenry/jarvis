@@ -30,6 +30,9 @@ func NewJobContext() (*JobContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
+	if err := cfg.ValidateForCron(); err != nil {
+		return nil, fmt.Errorf("invalid cron config: %w", err)
+	}
 
 	loggerService := logger.NewLoggerService(cfg.Observability)
 	loggerInstance := logger.NewLoggerWithService(cfg.Observability, loggerService)
@@ -37,10 +40,6 @@ func NewJobContext() (*JobContext, error) {
 	db, err := database.New(cfg, &loggerInstance, loggerService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
-	}
-
-	if cfg.Redis.Address == "" {
-		return nil, fmt.Errorf("redis address is required for cron jobs")
 	}
 
 	redisClient := redis.NewClient(&redis.Options{
